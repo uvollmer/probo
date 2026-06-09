@@ -33,24 +33,24 @@ var emptyJSONObject = json.RawMessage(`{}`)
 
 type (
 	Device struct {
-		ID                     gid.GID         `db:"id"`
-		TenantID               gid.TenantID    `db:"tenant_id"`
-		OrganizationID         gid.GID         `db:"organization_id"`
-		EnrollmentTokenID      *gid.GID        `db:"enrollment_token_id"`
-		HardwareUUID           string          `db:"hardware_uuid"`
-		SerialNumber           *string         `db:"serial_number"`
-		Hostname               string          `db:"hostname"`
-		Platform               DevicePlatform  `db:"platform"`
-		OSVersion              string          `db:"os_version"`
-		AgentVersion           string          `db:"agent_version"`
-		APIKeyHash             []byte          `db:"api_key_hash"`
-		AssignedUserIdentityID *gid.GID        `db:"assigned_user_identity_id"`
-		Labels                 json.RawMessage `db:"labels"`
-		EnrolledAt             time.Time       `db:"enrolled_at"`
-		LastSeenAt             time.Time       `db:"last_seen_at"`
-		RevokedAt              *time.Time      `db:"revoked_at"`
-		CreatedAt              time.Time       `db:"created_at"`
-		UpdatedAt              time.Time       `db:"updated_at"`
+		ID                gid.GID         `db:"id"`
+		TenantID          gid.TenantID    `db:"tenant_id"`
+		OrganizationID    gid.GID         `db:"organization_id"`
+		EnrollmentTokenID *gid.GID        `db:"enrollment_token_id"`
+		HardwareUUID      string          `db:"hardware_uuid"`
+		SerialNumber      *string         `db:"serial_number"`
+		Hostname          string          `db:"hostname"`
+		Platform          DevicePlatform  `db:"platform"`
+		OSVersion         string          `db:"os_version"`
+		AgentVersion      string          `db:"agent_version"`
+		APIKeyHash        []byte          `db:"api_key_hash"`
+		OwnerID           *gid.GID        `db:"owner_id"`
+		Labels            json.RawMessage `db:"labels"`
+		EnrolledAt        time.Time       `db:"enrolled_at"`
+		LastSeenAt        time.Time       `db:"last_seen_at"`
+		RevokedAt         *time.Time      `db:"revoked_at"`
+		CreatedAt         time.Time       `db:"created_at"`
+		UpdatedAt         time.Time       `db:"updated_at"`
 	}
 
 	Devices []*Device
@@ -122,7 +122,7 @@ SELECT
     os_version,
     agent_version,
     api_key_hash,
-    assigned_user_identity_id,
+    owner_id,
     labels,
     enrolled_at,
     last_seen_at,
@@ -178,7 +178,7 @@ SELECT
     os_version,
     agent_version,
     api_key_hash,
-    assigned_user_identity_id,
+    owner_id,
     labels,
     enrolled_at,
     last_seen_at,
@@ -231,7 +231,7 @@ SELECT
     os_version,
     agent_version,
     api_key_hash,
-    assigned_user_identity_id,
+    owner_id,
     labels,
     enrolled_at,
     last_seen_at,
@@ -290,7 +290,7 @@ SELECT
     os_version,
     agent_version,
     api_key_hash,
-    assigned_user_identity_id,
+    owner_id,
     labels,
     enrolled_at,
     last_seen_at,
@@ -351,7 +351,7 @@ INSERT INTO devices (
     os_version,
     agent_version,
     api_key_hash,
-    assigned_user_identity_id,
+    owner_id,
     labels,
     enrolled_at,
     last_seen_at,
@@ -370,7 +370,7 @@ INSERT INTO devices (
     @os_version,
     @agent_version,
     @api_key_hash,
-    @assigned_user_identity_id,
+    @owner_id,
     @labels,
     @enrolled_at,
     @last_seen_at,
@@ -380,24 +380,24 @@ INSERT INTO devices (
 )
 `
 	args := pgx.StrictNamedArgs{
-		"device_id":                 d.ID,
-		"tenant_id":                 scope.GetTenantID(),
-		"organization_id":           d.OrganizationID,
-		"enrollment_token_id":       d.EnrollmentTokenID,
-		"hardware_uuid":             d.HardwareUUID,
-		"serial_number":             d.SerialNumber,
-		"hostname":                  d.Hostname,
-		"platform":                  d.Platform,
-		"os_version":                d.OSVersion,
-		"agent_version":             d.AgentVersion,
-		"api_key_hash":              d.APIKeyHash,
-		"assigned_user_identity_id": d.AssignedUserIdentityID,
-		"labels":                    labels,
-		"enrolled_at":               d.EnrolledAt,
-		"last_seen_at":              d.LastSeenAt,
-		"revoked_at":                d.RevokedAt,
-		"created_at":                d.CreatedAt,
-		"updated_at":                d.UpdatedAt,
+		"device_id":           d.ID,
+		"tenant_id":           scope.GetTenantID(),
+		"organization_id":     d.OrganizationID,
+		"enrollment_token_id": d.EnrollmentTokenID,
+		"hardware_uuid":       d.HardwareUUID,
+		"serial_number":       d.SerialNumber,
+		"hostname":            d.Hostname,
+		"platform":            d.Platform,
+		"os_version":          d.OSVersion,
+		"agent_version":       d.AgentVersion,
+		"api_key_hash":        d.APIKeyHash,
+		"owner_id":            d.OwnerID,
+		"labels":              labels,
+		"enrolled_at":         d.EnrolledAt,
+		"last_seen_at":        d.LastSeenAt,
+		"revoked_at":          d.RevokedAt,
+		"created_at":          d.CreatedAt,
+		"updated_at":          d.UpdatedAt,
 	}
 
 	_, err := conn.Exec(ctx, q, args)
@@ -545,7 +545,7 @@ func (d *Device) AssignUser(
 	q := `
 UPDATE devices
 SET
-    assigned_user_identity_id = @identity_id,
+    owner_id = @identity_id,
     updated_at = @now
 WHERE %s
     AND id = @device_id
@@ -563,7 +563,7 @@ WHERE %s
 		return fmt.Errorf("cannot assign device user: %w", err)
 	}
 
-	d.AssignedUserIdentityID = identityID
+	d.OwnerID = identityID
 	d.UpdatedAt = now
 	return nil
 }
@@ -588,7 +588,7 @@ SELECT
     os_version,
     agent_version,
     api_key_hash,
-    assigned_user_identity_id,
+    owner_id,
     labels,
     enrolled_at,
     last_seen_at,

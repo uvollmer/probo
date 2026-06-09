@@ -58,7 +58,7 @@ CREATE TABLE devices (
     os_version TEXT NOT NULL,
     agent_version TEXT NOT NULL,
     api_key_hash BYTEA NOT NULL,
-    assigned_user_identity_id TEXT,
+    owner_id TEXT,
     labels JSONB NOT NULL DEFAULT '{}'::jsonb,
     enrolled_at TIMESTAMP WITH TIME ZONE NOT NULL,
     last_seen_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -73,9 +73,9 @@ CREATE UNIQUE INDEX devices_org_hardware_uuid_idx
 CREATE UNIQUE INDEX devices_api_key_hash_idx
     ON devices (api_key_hash);
 
-CREATE INDEX devices_assigned_user_idx
-    ON devices (assigned_user_identity_id)
-    WHERE assigned_user_identity_id IS NOT NULL;
+CREATE INDEX devices_owner_idx
+    ON devices (owner_id)
+    WHERE owner_id IS NOT NULL;
 
 CREATE TABLE device_postures (
     id TEXT PRIMARY KEY,
