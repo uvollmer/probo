@@ -22,15 +22,15 @@ import (
 	"strings"
 )
 
-func runElevatedInstall(opts Options, token string) error {
+func runElevatedInstall(opts Options, apiKey string) error {
 	shellCmd := strings.Join(
 		[]string{
 			shellQuote(opts.ExePath),
 			"install",
 			"--server",
 			shellQuote(opts.ServerURL),
-			"--enrollment-token",
-			shellQuote(token),
+			"--api-key",
+			shellQuote(apiKey),
 		},
 		" ",
 	)

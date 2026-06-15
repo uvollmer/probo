@@ -30,7 +30,6 @@ var ViewerPolicy = policy.NewPolicy(
 	policy.Allow(
 		ActionDeviceGet, ActionDeviceList,
 		ActionDevicePostureList,
-		ActionDeviceEnrollmentTokenGet, ActionDeviceEnrollmentTokenList,
 	).WithSID("itam-read-access").When(organizationCondition),
 ).WithDescription("Read-only ITAM access for organization viewers")
 

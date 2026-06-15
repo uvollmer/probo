@@ -43,9 +43,7 @@ export const enrollDevicePageQuery = graphql`
             organization @required(action: THROW) {
               id
               name
-              canCreateEnrollmentToken: permission(
-                action: "core:device-enrollment-token:create"
-              )
+              canCreateDevice: permission(action: "core:device:create")
             }
           }
         }
@@ -71,7 +69,7 @@ export function EnrollDevicePage({ queryRef }: EnrollDevicePageProps) {
     () =>
       viewer.profiles.edges
         .map(edge => edge.node.organization)
-        .filter(organization => organization.canCreateEnrollmentToken),
+        .filter(organization => organization.canCreateDevice),
     [viewer.profiles.edges],
   );
 
@@ -135,7 +133,7 @@ export function EnrollDevicePage({ queryRef }: EnrollDevicePageProps) {
                 </h2>
                 <p className="text-sm text-txt-secondary">
                   {__(
-                    "You do not have permission to create enrollment tokens in any organization.",
+                    "You do not have permission to create devices in any organization.",
                   )}
                 </p>
               </div>

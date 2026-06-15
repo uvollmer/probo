@@ -539,39 +539,6 @@ func (r *queryResolver) CommonThirdParties(ctx context.Context, name string) ([]
 	return result, nil
 }
 
-// DeviceEnrollmentStatus is the resolver for the deviceEnrollmentStatus field.
-func (r *queryResolver) DeviceEnrollmentStatus(ctx context.Context, enrollmentTokenID gid.GID) (*types.DeviceEnrollmentStatus, error) {
-	scope, err := r.authorize(ctx, enrollmentTokenID, itam.ActionDeviceEnrollmentTokenGet)
-	if err != nil {
-		return nil, err
-	}
-
-	status, err := r.itam.GetEnrollmentStatus(ctx, scope, enrollmentTokenID)
-	if err != nil {
-		r.logger.ErrorCtx(ctx, "cannot get device enrollment status", log.Error(err))
-		return nil, gqlutils.Internal(ctx)
-	}
-
-	result := &types.DeviceEnrollmentStatus{
-		State:          types.DeviceEnrollmentStateTokenCreated,
-		TokenUsedCount: status.Token.UsedCount,
-	}
-
-	if status.Device != nil {
-		result.Device = types.NewDevice(status.Device)
-	}
-
-	switch {
-	case status.FirstActivityAt != nil:
-		result.State = types.DeviceEnrollmentStateFirstActivityReceived
-		result.FirstActivityAt = status.FirstActivityAt
-	case status.Device != nil:
-		result.State = types.DeviceEnrollmentStateDeviceEnrolled
-	}
-
-	return result, nil
-}
-
 // Mutation returns schema.MutationResolver implementation.
 func (r *Resolver) Mutation() schema.MutationResolver { return &mutationResolver{r} }
 

@@ -17,7 +17,6 @@ package coredata
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"time"
@@ -193,37 +192,5 @@ LIMIT @limit
 	}
 
 	*p = postures
-	return nil
-}
-
-func (p *DevicePosture) LoadFirstObservedAtByDeviceID(
-	ctx context.Context,
-	conn pg.Querier,
-	scope Scoper,
-	deviceID gid.GID,
-) error {
-	q := `
-SELECT
-    observed_at
-FROM
-    device_postures
-WHERE
-    %s
-    AND device_id = @device_id
-ORDER BY observed_at ASC
-LIMIT 1
-`
-	q = fmt.Sprintf(q, scope.SQLFragment())
-
-	args := pgx.StrictNamedArgs{"device_id": deviceID}
-	maps.Copy(args, scope.SQLArguments())
-
-	if err := conn.QueryRow(ctx, q, args).Scan(&p.ObservedAt); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrResourceNotFound
-		}
-		return fmt.Errorf("cannot load first observed_at by device id: %w", err)
-	}
-
 	return nil
 }

@@ -10,6 +10,16 @@ enum DevicePlatform
         @goEnum(value: "go.probo.inc/probo/pkg/coredata.DevicePlatformWindows")
 }
 
+enum DeviceState
+    @goModel(model: "go.probo.inc/probo/pkg/coredata.DeviceState") {
+    PENDING
+        @goEnum(value: "go.probo.inc/probo/pkg/coredata.DeviceStatePending")
+    ACTIVE
+        @goEnum(value: "go.probo.inc/probo/pkg/coredata.DeviceStateActive")
+    REVOKED
+        @goEnum(value: "go.probo.inc/probo/pkg/coredata.DeviceStateRevoked")
+}
+
 enum DevicePostureStatus
     @goModel(
         model: "go.probo.inc/probo/pkg/coredata.DevicePostureStatus"
@@ -50,14 +60,15 @@ input DeviceOrder
 
 type Device implements Node {
     id: ID!
-    hostname: String!
+    state: DeviceState!
+    hostname: String
     serialNumber: String
-    hardwareUuid: String!
-    platform: DevicePlatform!
-    osVersion: String!
-    agentVersion: String!
-    enrolledAt: Datetime!
-    lastSeenAt: Datetime!
+    hardwareUuid: String
+    platform: DevicePlatform
+    osVersion: String
+    agentVersion: String
+    enrolledAt: Datetime
+    lastSeenAt: Datetime
     revokedAt: Datetime
     createdAt: Datetime!
     updatedAt: Datetime!
@@ -87,37 +98,10 @@ type DeviceEdge {
     node: Device!
 }
 
-type DeviceEnrollmentToken implements Node {
-    id: ID!
-    name: String!
-    expiresAt: Datetime!
-    revokedAt: Datetime
-    maxUses: Int
-    usedCount: Int!
-    createdAt: Datetime!
-}
-
-enum DeviceEnrollmentState {
-    TOKEN_CREATED
-    DEVICE_ENROLLED
-    FIRST_ACTIVITY_RECEIVED
-}
-
-type DeviceEnrollmentStatus {
-    state: DeviceEnrollmentState!
-    tokenUsedCount: Int!
-    device: Device
-    firstActivityAt: Datetime
-}
-
-type CreateDeviceEnrollmentTokenPayload {
-    enrollmentToken: DeviceEnrollmentToken!
-    # secret is shown ONCE at creation time; the agent installer needs it.
-    secret: String!
-}
-
-type RevokeDeviceEnrollmentTokenPayload {
-    enrollmentToken: DeviceEnrollmentToken!
+type CreateDevicePayload {
+    device: Device!
+    # apiKey is shown ONCE at creation time; the agent installer needs it.
+    apiKey: String!
 }
 
 type RevokeDevicePayload {
@@ -128,15 +112,9 @@ type AssignDeviceToUserPayload {
     device: Device!
 }
 
-input CreateDeviceEnrollmentTokenInput {
+input CreateDeviceInput {
     organizationId: ID!
-    name: String!
-    validitySeconds: Int
-    maxUses: Int
-}
-
-input RevokeDeviceEnrollmentTokenInput {
-    enrollmentTokenId: ID!
+    ownerIdentityId: ID
 }
 
 input RevokeDeviceInput {
@@ -149,12 +127,7 @@ input AssignDeviceToUserInput {
 }
 
 extend type Mutation {
-    createDeviceEnrollmentToken(
-        input: CreateDeviceEnrollmentTokenInput!
-    ): CreateDeviceEnrollmentTokenPayload!
-    revokeDeviceEnrollmentToken(
-        input: RevokeDeviceEnrollmentTokenInput!
-    ): RevokeDeviceEnrollmentTokenPayload!
+    createDevice(input: CreateDeviceInput!): CreateDevicePayload!
     revokeDevice(input: RevokeDeviceInput!): RevokeDevicePayload!
     assignDeviceToUser(
         input: AssignDeviceToUserInput!

@@ -14,56 +14,43 @@
 
 import { formatError, type GraphQLError } from "@probo/helpers";
 import { useTranslate } from "@probo/i18n";
-import { Button, Input, useToast } from "@probo/ui";
+import { Button, useToast } from "@probo/ui";
 import { useState } from "react";
 import { useMutation } from "react-relay";
 import { graphql } from "relay-runtime";
 
-import type { CreateEnrollmentTokenFormMutation } from "#/__generated__/core/CreateEnrollmentTokenFormMutation.graphql";
+import type { CreateDeviceFormMutation } from "#/__generated__/core/CreateDeviceFormMutation.graphql";
 import { useOrganizationId } from "#/hooks/useOrganizationId";
 
 import { EnrollmentInstructions } from "./EnrollmentInstructions";
 
-const TOKEN_VALIDITY_SECONDS = 60 * 60 * 24 * 7;
-const TOKEN_DEFAULT_MAX_USES = 25;
-
-const createEnrollmentTokenMutation = graphql`
-  mutation CreateEnrollmentTokenFormMutation(
-    $input: CreateDeviceEnrollmentTokenInput!
-  ) {
-    createDeviceEnrollmentToken(input: $input) {
-      secret
-      enrollmentToken {
+const createDeviceMutation = graphql`
+  mutation CreateDeviceFormMutation($input: CreateDeviceInput!) {
+    createDevice(input: $input) {
+      apiKey
+      device {
         id
       }
     }
   }
 `;
 
-export function CreateEnrollmentTokenForm() {
+export function CreateDeviceForm() {
   const { __ } = useTranslate();
   const { toast } = useToast();
 
-  const [tokenName, setTokenName] = useState("");
-  const [secret, setSecret] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
 
   const organizationId = useOrganizationId();
-  const [createEnrollmentToken, isCreating]
-    = useMutation<CreateEnrollmentTokenFormMutation>(
-      createEnrollmentTokenMutation,
-    );
+  const [createDevice, isCreating] = useMutation<CreateDeviceFormMutation>(
+    createDeviceMutation,
+  );
 
   const handleCreate = () => {
-    const name = tokenName.trim();
-    if (!name) return;
-
-    createEnrollmentToken({
+    createDevice({
       variables: {
         input: {
           organizationId,
-          name,
-          validitySeconds: TOKEN_VALIDITY_SECONDS,
-          maxUses: TOKEN_DEFAULT_MAX_USES,
         },
       },
       onCompleted(response, errors) {
@@ -75,12 +62,12 @@ export function CreateEnrollmentTokenForm() {
           });
           return;
         }
-        setSecret(response.createDeviceEnrollmentToken.secret);
-        setTokenName("");
+
+        setApiKey(response.createDevice.apiKey);
         toast({
           title: __("Success"),
           description: __(
-            "Enrollment token created. Copy it now — it will not be shown again.",
+            "Device created. Copy the API key now — it will not be shown again.",
           ),
           variant: "success",
         });
@@ -89,7 +76,7 @@ export function CreateEnrollmentTokenForm() {
         toast({
           title: __("Error"),
           description: formatError(
-            __("Failed to create enrollment token"),
+            __("Failed to create device"),
             error as GraphQLError,
           ),
           variant: "error",
@@ -101,20 +88,11 @@ export function CreateEnrollmentTokenForm() {
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Input
-          placeholder={__("Token name (e.g. \"My laptop\")")}
-          value={tokenName}
-          onChange={e => setTokenName(e.target.value)}
-          className="w-72"
-        />
-        <Button
-          onClick={handleCreate}
-          disabled={isCreating || !tokenName.trim()}
-        >
-          {__("Generate enrollment token")}
+        <Button onClick={handleCreate} disabled={isCreating}>
+          {__("Create device and generate API key")}
         </Button>
       </div>
-      {secret && <EnrollmentInstructions secret={secret} />}
+      {apiKey && <EnrollmentInstructions apiKey={apiKey} />}
     </div>
   );
 }

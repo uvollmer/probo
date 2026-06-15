@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.gearno.de/kit/pg"
 	"go.probo.inc/probo/pkg/gid"
 	"go.probo.inc/probo/pkg/iam/policy"
@@ -31,26 +32,47 @@ import (
 
 var emptyJSONObject = json.RawMessage(`{}`)
 
+const deviceSelectColumns = `
+    id,
+    tenant_id,
+    organization_id,
+    state,
+    hardware_uuid,
+    serial_number,
+    hostname,
+    platform,
+    os_version,
+    agent_version,
+    api_key_hash,
+    owner_id,
+    labels,
+    enrolled_at,
+    last_seen_at,
+    revoked_at,
+    created_at,
+    updated_at
+`
+
 type (
 	Device struct {
-		ID                gid.GID         `db:"id"`
-		TenantID          gid.TenantID    `db:"tenant_id"`
-		OrganizationID    gid.GID         `db:"organization_id"`
-		EnrollmentTokenID *gid.GID        `db:"enrollment_token_id"`
-		HardwareUUID      string          `db:"hardware_uuid"`
-		SerialNumber      *string         `db:"serial_number"`
-		Hostname          string          `db:"hostname"`
-		Platform          DevicePlatform  `db:"platform"`
-		OSVersion         string          `db:"os_version"`
-		AgentVersion      string          `db:"agent_version"`
-		APIKeyHash        []byte          `db:"api_key_hash"`
-		OwnerID           *gid.GID        `db:"owner_id"`
-		Labels            json.RawMessage `db:"labels"`
-		EnrolledAt        time.Time       `db:"enrolled_at"`
-		LastSeenAt        time.Time       `db:"last_seen_at"`
-		RevokedAt         *time.Time      `db:"revoked_at"`
-		CreatedAt         time.Time       `db:"created_at"`
-		UpdatedAt         time.Time       `db:"updated_at"`
+		ID             gid.GID         `db:"id"`
+		TenantID       gid.TenantID    `db:"tenant_id"`
+		OrganizationID gid.GID         `db:"organization_id"`
+		State          DeviceState     `db:"state"`
+		HardwareUUID   *string         `db:"hardware_uuid"`
+		SerialNumber   *string         `db:"serial_number"`
+		Hostname       *string         `db:"hostname"`
+		Platform       *DevicePlatform `db:"platform"`
+		OSVersion      *string         `db:"os_version"`
+		AgentVersion   *string         `db:"agent_version"`
+		APIKeyHash     []byte          `db:"api_key_hash"`
+		OwnerID        *gid.GID        `db:"owner_id"`
+		Labels         json.RawMessage `db:"labels"`
+		EnrolledAt     *time.Time      `db:"enrolled_at"`
+		LastSeenAt     *time.Time      `db:"last_seen_at"`
+		RevokedAt      *time.Time      `db:"revoked_at"`
+		CreatedAt      time.Time       `db:"created_at"`
+		UpdatedAt      time.Time       `db:"updated_at"`
 	}
 
 	Devices []*Device
@@ -63,9 +85,19 @@ func (d *Device) CursorKey(orderBy DeviceOrderField) page.CursorKey {
 	case DeviceOrderFieldUpdatedAt:
 		return page.NewCursorKey(d.ID, d.UpdatedAt)
 	case DeviceOrderFieldHostname:
-		return page.NewCursorKey(d.ID, d.Hostname)
+		hostname := ""
+		if d.Hostname != nil {
+			hostname = *d.Hostname
+		}
+
+		return page.NewCursorKey(d.ID, hostname)
 	case DeviceOrderFieldLastSeenAt:
-		return page.NewCursorKey(d.ID, d.LastSeenAt)
+		lastSeen := time.Time{}
+		if d.LastSeenAt != nil {
+			lastSeen = *d.LastSeenAt
+		}
+
+		return page.NewCursorKey(d.ID, lastSeen)
 	}
 
 	panic(fmt.Sprintf("unsupported order by: %s", orderBy))
@@ -109,34 +141,16 @@ func (d *Device) LoadByID(
 	scope Scoper,
 	deviceID gid.GID,
 ) error {
-	q := `
+	q := fmt.Sprintf(`
 SELECT
-    id,
-    tenant_id,
-    organization_id,
-    enrollment_token_id,
-    hardware_uuid,
-    serial_number,
-    hostname,
-    platform,
-    os_version,
-    agent_version,
-    api_key_hash,
-    owner_id,
-    labels,
-    enrolled_at,
-    last_seen_at,
-    revoked_at,
-    created_at,
-    updated_at
+%s
 FROM
     devices
 WHERE
     %s
     AND id = @device_id
 LIMIT 1;
-`
-	q = fmt.Sprintf(q, scope.SQLFragment())
+`, deviceSelectColumns, scope.SQLFragment())
 
 	args := pgx.StrictNamedArgs{"device_id": deviceID}
 	maps.Copy(args, scope.SQLArguments())
@@ -151,10 +165,12 @@ LIMIT 1;
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrResourceNotFound
 		}
+
 		return fmt.Errorf("cannot collect device: %w", err)
 	}
 
 	*d = device
+
 	return nil
 }
 
@@ -165,34 +181,21 @@ func (d *Device) LoadByAPIKeyHash(
 	conn pg.Querier,
 	apiKeyHash []byte,
 ) error {
-	q := `
+	q := fmt.Sprintf(`
 SELECT
-    id,
-    tenant_id,
-    organization_id,
-    enrollment_token_id,
-    hardware_uuid,
-    serial_number,
-    hostname,
-    platform,
-    os_version,
-    agent_version,
-    api_key_hash,
-    owner_id,
-    labels,
-    enrolled_at,
-    last_seen_at,
-    revoked_at,
-    created_at,
-    updated_at
+%s
 FROM
     devices
 WHERE
     api_key_hash = @api_key_hash
-    AND revoked_at IS NULL
+    AND state != @revoked_state
 LIMIT 1;
-`
-	args := pgx.StrictNamedArgs{"api_key_hash": apiKeyHash}
+`, deviceSelectColumns)
+
+	args := pgx.StrictNamedArgs{
+		"api_key_hash":  apiKeyHash,
+		"revoked_state": DeviceStateRevoked,
+	}
 
 	rows, err := conn.Query(ctx, q, args)
 	if err != nil {
@@ -204,10 +207,12 @@ LIMIT 1;
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrResourceNotFound
 		}
+
 		return fmt.Errorf("cannot collect device: %w", err)
 	}
 
 	*d = device
+
 	return nil
 }
 
@@ -218,26 +223,9 @@ func (d *Device) LoadByHardwareUUID(
 	organizationID gid.GID,
 	hardwareUUID string,
 ) error {
-	q := `
+	q := fmt.Sprintf(`
 SELECT
-    id,
-    tenant_id,
-    organization_id,
-    enrollment_token_id,
-    hardware_uuid,
-    serial_number,
-    hostname,
-    platform,
-    os_version,
-    agent_version,
-    api_key_hash,
-    owner_id,
-    labels,
-    enrolled_at,
-    last_seen_at,
-    revoked_at,
-    created_at,
-    updated_at
+%s
 FROM
     devices
 WHERE
@@ -245,8 +233,7 @@ WHERE
     AND organization_id = @organization_id
     AND hardware_uuid = @hardware_uuid
 LIMIT 1;
-`
-	q = fmt.Sprintf(q, scope.SQLFragment())
+`, deviceSelectColumns, scope.SQLFragment())
 
 	args := pgx.StrictNamedArgs{
 		"organization_id": organizationID,
@@ -264,67 +251,12 @@ LIMIT 1;
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrResourceNotFound
 		}
+
 		return fmt.Errorf("cannot collect device: %w", err)
 	}
 
 	*d = device
-	return nil
-}
 
-func (d *Device) LoadLatestByEnrollmentTokenID(
-	ctx context.Context,
-	conn pg.Querier,
-	scope Scoper,
-	enrollmentTokenID gid.GID,
-) error {
-	q := `
-SELECT
-    id,
-    tenant_id,
-    organization_id,
-    enrollment_token_id,
-    hardware_uuid,
-    serial_number,
-    hostname,
-    platform,
-    os_version,
-    agent_version,
-    api_key_hash,
-    owner_id,
-    labels,
-    enrolled_at,
-    last_seen_at,
-    revoked_at,
-    created_at,
-    updated_at
-FROM
-    devices
-WHERE
-    %s
-    AND enrollment_token_id = @enrollment_token_id
-ORDER BY
-    enrolled_at DESC
-LIMIT 1;
-`
-	q = fmt.Sprintf(q, scope.SQLFragment())
-
-	args := pgx.StrictNamedArgs{"enrollment_token_id": enrollmentTokenID}
-	maps.Copy(args, scope.SQLArguments())
-
-	rows, err := conn.Query(ctx, q, args)
-	if err != nil {
-		return fmt.Errorf("cannot query device by enrollment token id: %w", err)
-	}
-
-	device, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[Device])
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrResourceNotFound
-		}
-		return fmt.Errorf("cannot collect device: %w", err)
-	}
-
-	*d = device
 	return nil
 }
 
@@ -343,7 +275,7 @@ INSERT INTO devices (
     id,
     tenant_id,
     organization_id,
-    enrollment_token_id,
+    state,
     hardware_uuid,
     serial_number,
     hostname,
@@ -362,7 +294,7 @@ INSERT INTO devices (
     @device_id,
     @tenant_id,
     @organization_id,
-    @enrollment_token_id,
+    @state,
     @hardware_uuid,
     @serial_number,
     @hostname,
@@ -380,85 +312,98 @@ INSERT INTO devices (
 )
 `
 	args := pgx.StrictNamedArgs{
-		"device_id":           d.ID,
-		"tenant_id":           scope.GetTenantID(),
-		"organization_id":     d.OrganizationID,
-		"enrollment_token_id": d.EnrollmentTokenID,
-		"hardware_uuid":       d.HardwareUUID,
-		"serial_number":       d.SerialNumber,
-		"hostname":            d.Hostname,
-		"platform":            d.Platform,
-		"os_version":          d.OSVersion,
-		"agent_version":       d.AgentVersion,
-		"api_key_hash":        d.APIKeyHash,
-		"owner_id":            d.OwnerID,
-		"labels":              labels,
-		"enrolled_at":         d.EnrolledAt,
-		"last_seen_at":        d.LastSeenAt,
-		"revoked_at":          d.RevokedAt,
-		"created_at":          d.CreatedAt,
-		"updated_at":          d.UpdatedAt,
+		"device_id":       d.ID,
+		"tenant_id":       scope.GetTenantID(),
+		"organization_id": d.OrganizationID,
+		"state":           d.State,
+		"hardware_uuid":   d.HardwareUUID,
+		"serial_number":   d.SerialNumber,
+		"hostname":        d.Hostname,
+		"platform":        d.Platform,
+		"os_version":      d.OSVersion,
+		"agent_version":   d.AgentVersion,
+		"api_key_hash":    d.APIKeyHash,
+		"owner_id":        d.OwnerID,
+		"labels":          labels,
+		"enrolled_at":     d.EnrolledAt,
+		"last_seen_at":    d.LastSeenAt,
+		"revoked_at":      d.RevokedAt,
+		"created_at":      d.CreatedAt,
+		"updated_at":      d.UpdatedAt,
 	}
 
 	_, err := conn.Exec(ctx, q, args)
 	if err != nil {
 		return fmt.Errorf("cannot insert device: %w", err)
 	}
+
 	return nil
 }
 
-// Reenroll rotates the API key and refreshes the device metadata for an
-// existing (organization_id, hardware_uuid) row.
-func (d *Device) Reenroll(
+// Activate transitions a PENDING device to ACTIVE and records hardware
+// metadata from the agent's first heartbeat.
+func (d *Device) Activate(
 	ctx context.Context,
 	conn pg.Tx,
 	scope Scoper,
 ) error {
 	now := time.Now()
 
-	q := `
+	q := fmt.Sprintf(`
 UPDATE devices
 SET
-    enrollment_token_id = @enrollment_token_id,
+    hardware_uuid = @hardware_uuid,
     serial_number = @serial_number,
     hostname = @hostname,
     platform = @platform,
     os_version = @os_version,
     agent_version = @agent_version,
-    api_key_hash = @api_key_hash,
-    revoked_at = NULL,
+    state = @active_state,
+    enrolled_at = @now,
     last_seen_at = @now,
     updated_at = @now
 WHERE %s
     AND id = @device_id
-`
-	q = fmt.Sprintf(q, scope.SQLFragment())
+    AND state = @pending_state
+`, scope.SQLFragment())
 
 	args := pgx.StrictNamedArgs{
-		"device_id":           d.ID,
-		"enrollment_token_id": d.EnrollmentTokenID,
-		"serial_number":       d.SerialNumber,
-		"hostname":            d.Hostname,
-		"platform":            d.Platform,
-		"os_version":          d.OSVersion,
-		"agent_version":       d.AgentVersion,
-		"api_key_hash":        d.APIKeyHash,
-		"now":                 now,
+		"device_id":     d.ID,
+		"hardware_uuid": d.HardwareUUID,
+		"serial_number": d.SerialNumber,
+		"hostname":      d.Hostname,
+		"platform":      d.Platform,
+		"os_version":    d.OSVersion,
+		"agent_version": d.AgentVersion,
+		"active_state":  DeviceStateActive,
+		"pending_state": DeviceStatePending,
+		"now":           now,
 	}
 	maps.Copy(args, scope.SQLArguments())
 
-	if _, err := conn.Exec(ctx, q, args); err != nil {
-		return fmt.Errorf("cannot re-enroll device: %w", err)
+	result, err := conn.Exec(ctx, q, args)
+	if err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505" && pgErr.ConstraintName == "devices_org_hardware_uuid_idx" {
+			return ErrResourceAlreadyExists
+		}
+
+		return fmt.Errorf("cannot activate device: %w", err)
 	}
 
-	d.LastSeenAt = now
+	if result.RowsAffected() == 0 {
+		return ErrResourceNotFound
+	}
+
+	d.State = DeviceStateActive
+	d.EnrolledAt = &now
+	d.LastSeenAt = &now
 	d.UpdatedAt = now
-	d.RevokedAt = nil
+
 	return nil
 }
 
 // UpdateHeartbeat updates the volatile last-seen / version columns. Used by
-// the heartbeat handler on every check-in.
+// the heartbeat handler on every check-in after activation.
 func (d *Device) UpdateHeartbeat(
 	ctx context.Context,
 	conn pg.Tx,
@@ -466,7 +411,7 @@ func (d *Device) UpdateHeartbeat(
 ) error {
 	now := time.Now()
 
-	q := `
+	q := fmt.Sprintf(`
 UPDATE devices
 SET
     hostname = @hostname,
@@ -476,8 +421,8 @@ SET
     updated_at = @updated_at
 WHERE %s
     AND id = @device_id
-`
-	q = fmt.Sprintf(q, scope.SQLFragment())
+    AND state = @active_state
+`, scope.SQLFragment())
 
 	args := pgx.StrictNamedArgs{
 		"device_id":     d.ID,
@@ -486,15 +431,22 @@ WHERE %s
 		"agent_version": d.AgentVersion,
 		"last_seen_at":  now,
 		"updated_at":    now,
+		"active_state":  DeviceStateActive,
 	}
 	maps.Copy(args, scope.SQLArguments())
 
-	if _, err := conn.Exec(ctx, q, args); err != nil {
+	result, err := conn.Exec(ctx, q, args)
+	if err != nil {
 		return fmt.Errorf("cannot update device heartbeat: %w", err)
 	}
 
-	d.LastSeenAt = now
+	if result.RowsAffected() == 0 {
+		return ErrResourceNotFound
+	}
+
+	d.LastSeenAt = &now
 	d.UpdatedAt = now
+
 	return nil
 }
 
@@ -507,19 +459,20 @@ func (d *Device) Revoke(
 ) error {
 	now := time.Now()
 
-	q := `
+	q := fmt.Sprintf(`
 UPDATE devices
 SET
+    state = @revoked_state,
     revoked_at = COALESCE(revoked_at, @now),
     updated_at = @now
 WHERE %s
     AND id = @device_id
-`
-	q = fmt.Sprintf(q, scope.SQLFragment())
+`, scope.SQLFragment())
 
 	args := pgx.StrictNamedArgs{
-		"device_id": d.ID,
-		"now":       now,
+		"device_id":     d.ID,
+		"revoked_state": DeviceStateRevoked,
+		"now":           now,
 	}
 	maps.Copy(args, scope.SQLArguments())
 
@@ -527,10 +480,13 @@ WHERE %s
 		return fmt.Errorf("cannot revoke device: %w", err)
 	}
 
+	d.State = DeviceStateRevoked
 	if d.RevokedAt == nil {
 		d.RevokedAt = &now
 	}
+
 	d.UpdatedAt = now
+
 	return nil
 }
 
@@ -542,15 +498,14 @@ func (d *Device) AssignUser(
 ) error {
 	now := time.Now()
 
-	q := `
+	q := fmt.Sprintf(`
 UPDATE devices
 SET
     owner_id = @identity_id,
     updated_at = @now
 WHERE %s
     AND id = @device_id
-`
-	q = fmt.Sprintf(q, scope.SQLFragment())
+`, scope.SQLFragment())
 
 	args := pgx.StrictNamedArgs{
 		"device_id":   d.ID,
@@ -565,6 +520,7 @@ WHERE %s
 
 	d.OwnerID = identityID
 	d.UpdatedAt = now
+
 	return nil
 }
 
@@ -575,34 +531,16 @@ func (ds *Devices) LoadByOrganizationID(
 	organizationID gid.GID,
 	cursor *page.Cursor[DeviceOrderField],
 ) error {
-	q := `
+	q := fmt.Sprintf(`
 SELECT
-    id,
-    tenant_id,
-    organization_id,
-    enrollment_token_id,
-    hardware_uuid,
-    serial_number,
-    hostname,
-    platform,
-    os_version,
-    agent_version,
-    api_key_hash,
-    owner_id,
-    labels,
-    enrolled_at,
-    last_seen_at,
-    revoked_at,
-    created_at,
-    updated_at
+%s
 FROM
     devices
 WHERE
     %s
     AND organization_id = @organization_id
     AND %s
-`
-	q = fmt.Sprintf(q, scope.SQLFragment(), cursor.SQLFragment())
+`, deviceSelectColumns, scope.SQLFragment(), cursor.SQLFragment())
 
 	args := pgx.StrictNamedArgs{"organization_id": organizationID}
 	maps.Copy(args, scope.SQLArguments())
@@ -619,6 +557,7 @@ WHERE
 	}
 
 	*ds = devices
+
 	return nil
 }
 
@@ -628,11 +567,10 @@ func (ds *Devices) CountByOrganizationID(
 	scope Scoper,
 	organizationID gid.GID,
 ) (int, error) {
-	q := `
+	q := fmt.Sprintf(`
 SELECT COUNT(id) FROM devices
 WHERE %s AND organization_id = @organization_id
-`
-	q = fmt.Sprintf(q, scope.SQLFragment())
+`, scope.SQLFragment())
 
 	args := pgx.StrictNamedArgs{"organization_id": organizationID}
 	maps.Copy(args, scope.SQLArguments())
@@ -641,5 +579,6 @@ WHERE %s AND organization_id = @organization_id
 	if err := conn.QueryRow(ctx, q, args).Scan(&count); err != nil {
 		return 0, fmt.Errorf("cannot count devices: %w", err)
 	}
+
 	return count, nil
 }

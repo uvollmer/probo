@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"go.probo.inc/probo/pkg/coredata"
-	"go.probo.inc/probo/pkg/itam"
 )
 
 const (
@@ -29,32 +28,18 @@ const (
 )
 
 type (
-	EnrollRequest struct {
-		EnrollmentToken string                  `json:"enrollment_token"`
-		HardwareUUID    string                  `json:"hardware_uuid"`
-		SerialNumber    *string                 `json:"serial_number,omitempty"`
-		Hostname        string                  `json:"hostname"`
-		Platform        coredata.DevicePlatform `json:"platform"`
-		OSVersion       string                  `json:"os_version"`
-		AgentVersion    string                  `json:"agent_version"`
-	}
-
-	EnrollResponse struct {
-		DeviceID         string `json:"device_id"`
-		APIKey           string `json:"api_key"`
-		HeartbeatSeconds int    `json:"heartbeat_interval_seconds"`
-		PostureSeconds   int    `json:"posture_interval_seconds"`
-		ServerTime       string `json:"server_time"`
-	}
-
 	HeartbeatRequest struct {
-		AgentVersion string `json:"agent_version,omitempty"`
-		Hostname     string `json:"hostname,omitempty"`
-		OSVersion    string `json:"os_version,omitempty"`
-		UptimeSec    int64  `json:"uptime_seconds,omitempty"`
+		HardwareUUID string                  `json:"hardware_uuid"`
+		SerialNumber *string                 `json:"serial_number,omitempty"`
+		Hostname     string                  `json:"hostname"`
+		Platform     coredata.DevicePlatform `json:"platform"`
+		OSVersion    string                  `json:"os_version"`
+		AgentVersion string                  `json:"agent_version"`
+		UptimeSec    int64                   `json:"uptime_seconds,omitempty"`
 	}
 
 	HeartbeatResponse struct {
+		DeviceID         string `json:"device_id"`
 		HeartbeatSeconds int    `json:"heartbeat_interval_seconds"`
 		PostureSeconds   int    `json:"posture_interval_seconds"`
 		ServerTime       string `json:"server_time"`
@@ -72,22 +57,23 @@ type (
 	}
 )
 
-func (r EnrollRequest) Validate() error {
-	if r.EnrollmentToken == "" {
-		return errors.New("enrollment_token is required")
-	}
+func (r HeartbeatRequest) Validate() error {
 	if r.HardwareUUID == "" {
 		return errors.New("hardware_uuid is required")
 	}
+
 	if r.Hostname == "" {
 		return errors.New("hostname is required")
 	}
+
 	if !r.Platform.IsValid() {
 		return errors.New("platform is invalid")
 	}
+
 	if r.OSVersion == "" {
 		return errors.New("os_version is required")
 	}
+
 	if r.AgentVersion == "" {
 		return errors.New("agent_version is required")
 	}
@@ -95,22 +81,9 @@ func (r EnrollRequest) Validate() error {
 	return nil
 }
 
-func NewEnrollResponse(result *itam.EnrollDeviceResult) *EnrollResponse {
-	return &EnrollResponse{
-		DeviceID:         result.Device.ID.String(),
-		APIKey:           result.APIKey,
-		HeartbeatSeconds: heartbeatIntervalSeconds,
-		PostureSeconds:   postureIntervalSeconds,
-		ServerTime:       time.Now().UTC().Format(time.RFC3339),
-	}
-}
-
-func (r HeartbeatRequest) Validate() error {
-	return nil
-}
-
-func NewHeartbeatResponse() *HeartbeatResponse {
+func NewHeartbeatResponse(device *coredata.Device) *HeartbeatResponse {
 	return &HeartbeatResponse{
+		DeviceID:         device.ID.String(),
 		HeartbeatSeconds: heartbeatIntervalSeconds,
 		PostureSeconds:   postureIntervalSeconds,
 		ServerTime:       time.Now().UTC().Format(time.RFC3339),
@@ -122,6 +95,7 @@ func (r PostureRequest) Validate() error {
 		if result.CheckKey == "" {
 			return errors.New("check_key is required")
 		}
+
 		if !result.Status.IsValid() {
 			return errors.New("status is invalid")
 		}

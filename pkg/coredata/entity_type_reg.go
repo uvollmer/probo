@@ -126,7 +126,6 @@ const (
 	RiskAssessmentScenarioEntityType               uint16 = 100
 	DeviceEntityType                               uint16 = 101
 	DevicePostureEntityType                        uint16 = 102
-	DeviceEnrollmentTokenEntityType                uint16 = 103
 )
 
 func NewEntityFromID(id gid.GID) (any, bool) {
@@ -319,8 +318,6 @@ func NewEntityFromID(id gid.GID) (any, bool) {
 		return &Device{ID: id}, true
 	case DevicePostureEntityType:
 		return &DevicePosture{ID: id}, true
-	case DeviceEnrollmentTokenEntityType:
-		return &DeviceEnrollmentToken{ID: id}, true
 	default:
 		return nil, false
 	}

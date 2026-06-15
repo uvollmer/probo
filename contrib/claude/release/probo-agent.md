@@ -42,7 +42,7 @@ verifies the cosign bundle before installing.
 
 The menu bar / tray enrollment flow is **macOS and Windows only**.
 Linux and FreeBSD use `probo-agent install --server …
---enrollment-token …` from the shell. Windows release binaries are
+--api-key …` from the shell. Windows release binaries are
 cross-compiled from Linux with MinGW (CGO). macOS release binaries and
 `.pkg` installers must be built on macOS with `CGO_ENABLED=1`.
 

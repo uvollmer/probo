@@ -13,7 +13,7 @@
 // PERFORMANCE OF THIS SOFTWARE.
 
 // Package agent_v1 exposes the REST surface that the probo-agent binary
-// uses to enrol, heartbeat, and push device posture results.
+// uses to heartbeat and push device posture results.
 //
 // All endpoints speak JSON; agents should not need a GraphQL client.
 package agent_v1
@@ -49,58 +49,12 @@ func NewMux(logger *log.Logger, itamSvc *itam.Service, agentServer string) *chi.
 	}
 
 	r := chi.NewRouter()
-	r.Post("/enroll", h.handleEnroll)
-
-	r.Group(
-		func(r chi.Router) {
-			r.Use(h.deviceAuthMiddleware)
-			r.Post("/heartbeat", h.handleHeartbeat)
-			r.Post("/postures", h.handlePostures)
-			r.Post("/unenroll", h.handleUnenroll)
-		},
-	)
+	r.Use(h.deviceAuthMiddleware)
+	r.Post("/heartbeat", h.handleHeartbeat)
+	r.Post("/postures", h.handlePostures)
+	r.Post("/unenroll", h.handleUnenroll)
 
 	return r
-}
-
-func (h *Handler) handleEnroll(w http.ResponseWriter, r *http.Request) {
-	defer func() { _ = r.Body.Close() }()
-
-	var req types.EnrollRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil {
-		jsonutil.RenderBadRequest(w, fmt.Errorf("cannot decode request body: %w", err))
-		return
-	}
-
-	if err := req.Validate(); err != nil {
-		jsonutil.RenderBadRequest(w, fmt.Errorf("invalid request body: %w", err))
-		return
-	}
-
-	result, err := h.itamSvc.EnrollDevice(
-		r.Context(),
-		itam.EnrollDeviceRequest{
-			EnrollmentSecret: req.EnrollmentToken,
-			HardwareUUID:     req.HardwareUUID,
-			SerialNumber:     req.SerialNumber,
-			Hostname:         req.Hostname,
-			Platform:         req.Platform,
-			OSVersion:        req.OSVersion,
-			AgentVersion:     req.AgentVersion,
-		},
-	)
-	if err != nil {
-		if errors.Is(err, itam.ErrEnrollmentTokenInvalid) {
-			jsonutil.RenderUnauthorized(w, errors.New("enrollment token is invalid"))
-			return
-		}
-
-		h.logger.ErrorCtx(r.Context(), "cannot enroll device", log.Error(err))
-		jsonutil.RenderInternalServerError(w)
-		return
-	}
-
-	httpserver.RenderJSON(w, http.StatusOK, types.NewEnrollResponse(result))
 }
 
 func (h *Handler) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
@@ -125,16 +79,27 @@ func (h *Handler) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 
 	scope := coredata.NewScopeFromObjectID(dev.ID)
 
-	if err := h.itamSvc.RecordHeartbeat(
+	device, err := h.itamSvc.RecordHeartbeat(
 		r.Context(),
 		scope,
 		dev.ID,
-		req.Hostname,
-		req.OSVersion,
-		req.AgentVersion,
-	); err != nil {
+		itam.RecordHeartbeatRequest{
+			HardwareUUID: req.HardwareUUID,
+			SerialNumber: req.SerialNumber,
+			Hostname:     req.Hostname,
+			Platform:     req.Platform,
+			OSVersion:    req.OSVersion,
+			AgentVersion: req.AgentVersion,
+		},
+	)
+	if err != nil {
 		if errors.Is(err, itam.ErrDeviceRevoked) {
 			jsonutil.RenderUnauthorized(w, errors.New("device revoked"))
+			return
+		}
+
+		if errors.Is(err, itam.ErrDeviceHardwareConflict) {
+			jsonutil.RenderBadRequest(w, errors.New("device hardware uuid already enrolled"))
 			return
 		}
 
@@ -143,7 +108,7 @@ func (h *Handler) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpserver.RenderJSON(w, http.StatusOK, types.NewHeartbeatResponse())
+	httpserver.RenderJSON(w, http.StatusOK, types.NewHeartbeatResponse(device))
 }
 
 func (h *Handler) handlePostures(w http.ResponseWriter, r *http.Request) {
@@ -227,6 +192,7 @@ var deviceContextKey = &ctxKey{name: "device"}
 func deviceFromContext(ctx context.Context) *coredata.Device {
 	v := ctx.Value(deviceContextKey)
 	d, _ := v.(*coredata.Device)
+
 	return d
 }
 
@@ -237,6 +203,7 @@ func (h *Handler) deviceAuthMiddleware(next http.Handler) http.Handler {
 			jsonutil.RenderUnauthorized(w, errors.New("missing authorization"))
 			return
 		}
+
 		token, err := bearertoken.Parse(auth)
 		if err != nil {
 			jsonutil.RenderUnauthorized(w, errors.New("invalid bearer token"))
@@ -249,6 +216,7 @@ func (h *Handler) deviceAuthMiddleware(next http.Handler) http.Handler {
 				jsonutil.RenderUnauthorized(w, errors.New("unauthorized"))
 				return
 			}
+
 			h.logger.ErrorCtx(r.Context(), "cannot authenticate device", log.Error(err))
 			jsonutil.RenderInternalServerError(w)
 			return

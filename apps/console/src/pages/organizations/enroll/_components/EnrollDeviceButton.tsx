@@ -27,18 +27,14 @@ import { graphql } from "relay-runtime";
 import type { EnrollDeviceButtonMutation } from "#/__generated__/core/EnrollDeviceButtonMutation.graphql";
 import type { EnrollDeviceButtonStatusQuery } from "#/__generated__/core/EnrollDeviceButtonStatusQuery.graphql";
 
-const TOKEN_VALIDITY_SECONDS = 60 * 60 * 24 * 7;
-const TOKEN_DEFAULT_MAX_USES = 25;
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 15 * 60 * 1000;
 
 const enrollDeviceButtonMutation = graphql`
-  mutation EnrollDeviceButtonMutation(
-    $input: CreateDeviceEnrollmentTokenInput!
-  ) {
-    createDeviceEnrollmentToken(input: $input) {
-      secret
-      enrollmentToken {
+  mutation EnrollDeviceButtonMutation($input: CreateDeviceInput!) {
+    createDevice(input: $input) {
+      apiKey
+      device {
         id
       }
     }
@@ -46,11 +42,12 @@ const enrollDeviceButtonMutation = graphql`
 `;
 
 const enrollDeviceButtonStatusQuery = graphql`
-  query EnrollDeviceButtonStatusQuery($enrollmentTokenId: ID!) {
-    deviceEnrollmentStatus(enrollmentTokenId: $enrollmentTokenId) {
-      state
-      device {
+  query EnrollDeviceButtonStatusQuery($deviceId: ID!) {
+    device: node(id: $deviceId) {
+      __typename
+      ... on Device {
         id
+        state
         hostname
       }
     }
@@ -69,13 +66,13 @@ export function EnrollDeviceButton(
   const { toast } = useToast();
   const environment = useRelayEnvironment();
   const [deepLink, setDeepLink] = useState<string | null>(null);
-  const [enrollmentTokenId, setEnrollmentTokenId] = useState<string | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
   const [isWaitingForActivity, setIsWaitingForActivity] = useState(false);
   const [isEnrollmentComplete, setIsEnrollmentComplete] = useState(false);
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const [deviceHostname, setDeviceHostname] = useState<string | null>(null);
 
-  const [createEnrollmentToken, isCreating]
+  const [createDevice, isCreating]
     = useMutation<EnrollDeviceButtonMutation>(enrollDeviceButtonMutation);
 
   useEffect(() => {
@@ -87,13 +84,10 @@ export function EnrollDeviceButton(
       };
     }
 
-    createEnrollmentToken({
+    createDevice({
       variables: {
         input: {
           organizationId,
-          name: __("Device enrollment"),
-          validitySeconds: TOKEN_VALIDITY_SECONDS,
-          maxUses: TOKEN_DEFAULT_MAX_USES,
         },
       },
       onCompleted(response, errors) {
@@ -110,12 +104,12 @@ export function EnrollDeviceButton(
           return;
         }
 
-        const payload = response.createDeviceEnrollmentToken;
+        const payload = response.createDevice;
         const url = new URL("probo://enroll");
         url.searchParams.set("server", window.location.origin);
-        url.searchParams.set("token", payload.secret);
+        url.searchParams.set("key", payload.apiKey);
         setDeepLink(url.toString());
-        setEnrollmentTokenId(payload.enrollmentToken.id);
+        setDeviceId(payload.device.id);
       },
       onError(error) {
         if (!isCurrentRequest) {
@@ -125,7 +119,7 @@ export function EnrollDeviceButton(
         toast({
           title: __("Error"),
           description: formatError(
-            __("Failed to create enrollment token"),
+            __("Failed to create device"),
             error as GraphQLError,
           ),
           variant: "error",
@@ -136,10 +130,10 @@ export function EnrollDeviceButton(
     return () => {
       isCurrentRequest = false;
     };
-  }, [__, createEnrollmentToken, organizationId, toast]);
+  }, [__, createDevice, organizationId, toast]);
 
   useEffect(() => {
-    if (!isWaitingForActivity || !enrollmentTokenId) {
+    if (!isWaitingForActivity || !deviceId) {
       return;
     }
 
@@ -159,14 +153,18 @@ export function EnrollDeviceButton(
       fetchQuery<EnrollDeviceButtonStatusQuery>(
         environment,
         enrollDeviceButtonStatusQuery,
-        { enrollmentTokenId },
+        { deviceId },
         { fetchPolicy: "network-only" },
       ).subscribe({
         next(data: EnrollDeviceButtonStatusQuery["response"]) {
-          const status = data.deviceEnrollmentStatus;
-          setDeviceHostname(status.device?.hostname ?? null);
+          const device = data.device;
+          if (device?.__typename !== "Device") {
+            return;
+          }
 
-          if (status.state === "FIRST_ACTIVITY_RECEIVED") {
+          setDeviceHostname(device.hostname ?? null);
+
+          if (device.state === "ACTIVE") {
             setIsEnrollmentComplete(true);
             setIsWaitingForActivity(false);
             onComplete?.();
@@ -176,7 +174,7 @@ export function EnrollDeviceButton(
     }, POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [enrollmentTokenId, environment, isWaitingForActivity, onComplete]);
+  }, [deviceId, environment, isWaitingForActivity, onComplete]);
 
   function handleOpenAgent() {
     if (!deepLink) {

@@ -42,6 +42,7 @@ func NewDeviceConnection(
 	for i := range edges {
 		edges[i] = NewDeviceEdge(p.Data[i], p.Cursor.OrderBy.Field)
 	}
+
 	return &DeviceConnection{
 		Edges:    edges,
 		PageInfo: *NewPageInfo(p),
@@ -60,6 +61,7 @@ func NewDeviceEdge(d *coredata.Device, orderBy coredata.DeviceOrderField) *Devic
 func NewDevice(d *coredata.Device) *Device {
 	return &Device{
 		ID:           d.ID,
+		State:        d.State,
 		Hostname:     d.Hostname,
 		SerialNumber: d.SerialNumber,
 		HardwareUUID: d.HardwareUUID,
@@ -89,17 +91,6 @@ func NewDevicePostures(ps coredata.DevicePostures) []*DevicePosture {
 	for i, p := range ps {
 		out[i] = NewDevicePosture(p)
 	}
-	return out
-}
 
-func NewDeviceEnrollmentToken(t *coredata.DeviceEnrollmentToken) *DeviceEnrollmentToken {
-	return &DeviceEnrollmentToken{
-		ID:        t.ID,
-		Name:      t.Name,
-		ExpiresAt: t.ExpiresAt,
-		RevokedAt: t.RevokedAt,
-		MaxUses:   t.MaxUses,
-		UsedCount: t.UsedCount,
-		CreatedAt: t.CreatedAt,
-	}
+	return out
 }

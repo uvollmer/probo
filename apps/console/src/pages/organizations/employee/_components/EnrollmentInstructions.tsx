@@ -19,10 +19,10 @@ const RELEASE_BASE_URL
   = "https://github.com/getprobo/probo/releases/latest/download";
 
 interface EnrollmentInstructionsProps {
-  secret: string;
+  apiKey: string;
 }
 
-export function EnrollmentInstructions({ secret }: EnrollmentInstructionsProps) {
+export function EnrollmentInstructions({ apiKey }: EnrollmentInstructionsProps) {
   const { __ } = useTranslate();
 
   const unixCommand = `# 1. Download and install the probo-agent binary
@@ -33,10 +33,10 @@ tar -xzf /tmp/probo-agent.tar.gz -C /tmp
 sudo install -m 0755 "/tmp/\${NAME}/probo-agent" /usr/local/bin/probo-agent
 rm -rf /tmp/probo-agent.tar.gz "/tmp/\${NAME}"
 
-# 2. Enroll the device and start the agent service
+# 2. Configure the device and start the agent service
 sudo /usr/local/bin/probo-agent install \\
   --server ${SERVER_URL} \\
-  --enrollment-token '${secret}'`;
+  --api-key '${apiKey}'`;
 
   const windowsCommand = `# 1. Download and install the probo-agent binary
 $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x86_64' }
@@ -49,21 +49,21 @@ New-Item -ItemType Directory -Force -Path $dst | Out-Null
 Move-Item -Force "$env:TEMP\\$name\\probo-agent.exe" "$dst\\probo-agent.exe"
 Remove-Item -Recurse -Force $zip, "$env:TEMP\\$name"
 
-# 2. Enroll the device and start the agent service
+# 2. Configure the device and start the agent service
 & "$dst\\probo-agent.exe" install \`
   --server ${SERVER_URL} \`
-  --enrollment-token '${secret}'`;
+  --api-key '${apiKey}'`;
 
   return (
     <section className="border border-success-border bg-success-bg p-4 rounded">
-      <h2 className="font-medium mb-2">{__("Enrollment token generated")}</h2>
+      <h2 className="font-medium mb-2">{__("Device API key generated")}</h2>
       <p className="text-sm text-tertiary mb-2">
         {__(
-          "This token is shown only once. Use browser enrollment for desktop setup, or open the manual section below for CLI/MDM enrollment.",
+          "This key is shown only once. Use browser enrollment for desktop setup, or open the manual section below for CLI/MDM enrollment.",
         )}
       </p>
       <pre className="text-xs bg-surface-default p-3 rounded break-all">
-        {secret}
+        {apiKey}
       </pre>
 
       <details className="mt-4">
@@ -87,7 +87,7 @@ Remove-Item -Recurse -Force $zip, "$env:TEMP\\$name"
 
         <p className="text-xs text-tertiary mt-3">
           {__(
-            "The token is passed as a CLI flag (not via curl-piped-to-shell or sudo env vars). Once installed, the agent self-updates from GitHub Releases with cosign signature verification.",
+            "The key is passed as a CLI flag (not via curl-piped-to-shell or sudo env vars). Once installed, the agent self-updates from GitHub Releases with cosign signature verification.",
           )}
         </p>
       </details>

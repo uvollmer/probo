@@ -12,18 +12,46 @@
 // OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 // PERFORMANCE OF THIS SOFTWARE.
 
-package itam
+package coredata
 
-// ITAM Service Actions
-// Format: core:<entity>:<action>
+import "fmt"
+
+type DeviceState string
+
 const (
-	// Device actions
-	ActionDeviceList   = "core:device:list"
-	ActionDeviceGet    = "core:device:get"
-	ActionDeviceCreate = "core:device:create"
-	ActionDeviceRevoke = "core:device:revoke"
-	ActionDeviceAssign = "core:device:assign"
-
-	// DevicePosture actions
-	ActionDevicePostureList = "core:device-posture:list"
+	DeviceStatePending DeviceState = "PENDING"
+	DeviceStateActive  DeviceState = "ACTIVE"
+	DeviceStateRevoked DeviceState = "REVOKED"
 )
+
+func (s DeviceState) String() string {
+	return string(s)
+}
+
+func (s DeviceState) IsValid() bool {
+	switch s {
+	case DeviceStatePending, DeviceStateActive, DeviceStateRevoked:
+		return true
+	}
+
+	return false
+}
+
+func (s DeviceState) MarshalText() ([]byte, error) {
+	if !s.IsValid() {
+		return nil, fmt.Errorf("invalid device state: %q", string(s))
+	}
+
+	return []byte(s), nil
+}
+
+func (s *DeviceState) UnmarshalText(text []byte) error {
+	v := DeviceState(text)
+	if !v.IsValid() {
+		return fmt.Errorf("invalid device state: %q", string(text))
+	}
+
+	*s = v
+
+	return nil
+}

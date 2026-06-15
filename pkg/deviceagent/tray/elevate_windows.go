@@ -22,13 +22,13 @@ import (
 	"strings"
 )
 
-func runElevatedInstall(opts Options, token string) error {
+func runElevatedInstall(opts Options, apiKey string) error {
 	args := []string{
 		"install",
 		"--server",
 		opts.ServerURL,
-		"--enrollment-token",
-		token,
+		"--api-key",
+		apiKey,
 	}
 
 	argList := make([]string, len(args))

@@ -26,49 +26,52 @@ CREATE TYPE device_posture_status AS ENUM (
     'NOT_APPLICABLE'
 );
 
-CREATE TABLE device_enrollment_tokens (
-    id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL,
-    organization_id TEXT NOT NULL REFERENCES organizations(id) ON UPDATE CASCADE ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    token_hash BYTEA NOT NULL,
-    created_by_identity_id TEXT,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    revoked_at TIMESTAMP WITH TIME ZONE,
-    max_uses INTEGER,
-    used_count INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+CREATE TYPE device_state AS ENUM (
+    'PENDING',
+    'ACTIVE',
+    'REVOKED'
 );
-
-CREATE INDEX device_enrollment_tokens_org_idx
-    ON device_enrollment_tokens (organization_id);
-
-CREATE UNIQUE INDEX device_enrollment_tokens_token_hash_idx
-    ON device_enrollment_tokens (token_hash);
 
 CREATE TABLE devices (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
     organization_id TEXT NOT NULL REFERENCES organizations(id) ON UPDATE CASCADE ON DELETE CASCADE,
-    hardware_uuid TEXT NOT NULL,
+    state device_state NOT NULL DEFAULT 'PENDING',
+    hardware_uuid TEXT,
     serial_number TEXT,
-    hostname TEXT NOT NULL,
-    platform device_platform NOT NULL,
-    os_version TEXT NOT NULL,
-    agent_version TEXT NOT NULL,
+    hostname TEXT,
+    platform device_platform,
+    os_version TEXT,
+    agent_version TEXT,
     api_key_hash BYTEA NOT NULL,
     owner_id TEXT,
     labels JSONB NOT NULL DEFAULT '{}'::jsonb,
-    enrolled_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_seen_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    enrolled_at TIMESTAMP WITH TIME ZONE,
+    last_seen_at TIMESTAMP WITH TIME ZONE,
     revoked_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CONSTRAINT devices_active_fields_check CHECK (
+        state != 'ACTIVE'
+        OR (
+            hardware_uuid IS NOT NULL
+            AND hostname IS NOT NULL
+            AND platform IS NOT NULL
+            AND os_version IS NOT NULL
+            AND agent_version IS NOT NULL
+            AND enrolled_at IS NOT NULL
+            AND last_seen_at IS NOT NULL
+        )
+    ),
+    CONSTRAINT devices_revoked_at_check CHECK (
+        (state = 'REVOKED' AND revoked_at IS NOT NULL)
+        OR (state != 'REVOKED' AND revoked_at IS NULL)
+    )
 );
 
 CREATE UNIQUE INDEX devices_org_hardware_uuid_idx
-    ON devices (organization_id, hardware_uuid);
+    ON devices (organization_id, hardware_uuid)
+    WHERE hardware_uuid IS NOT NULL;
 
 CREATE UNIQUE INDEX devices_api_key_hash_idx
     ON devices (api_key_hash);

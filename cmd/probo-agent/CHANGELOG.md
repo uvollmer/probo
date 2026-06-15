@@ -11,7 +11,7 @@ documented in this file.
   (`probo-agent tray`). After install, a native enrollment window opens
   automatically when the device is not yet enrolled (SwiftUI on macOS,
   WinForms on Windows); users pick a Probo region (US, EU, or Self
-  hosted) and provide an enrollment token.
+  hosted) and provide a device API key.
   Once enrolled the menu shows **Connected** with **About** and
   **Quit** only. Linux and FreeBSD keep the CLI-only
   `probo-agent install` flow.
@@ -27,10 +27,10 @@ documented in this file.
 
 ### Changed
 
-- macOS `.pkg` installer no longer prompts for an enrollment token
-  during installation. Enrollment is handled by the menu bar helper
-  (MDM pre-staged `/tmp/probo-agent.conf` still works). Linux and
-  FreeBSD installers are unchanged.
+- macOS `.pkg` installer no longer prompts for a device API key during
+  installation. Enrollment is handled by the menu bar helper (MDM
+  pre-staged `/tmp/probo-agent.conf` still works). Linux and FreeBSD
+  installers are unchanged.
 - Enrollment helper dialogs on macOS and Windows now open `/enroll` in
   the browser instead of collecting tokens locally.
 - Windows release archives now include `register-protocol.ps1` to

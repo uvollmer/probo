@@ -21,16 +21,14 @@ import { graphql } from "relay-runtime";
 
 import type { EmployeeDevicesPageQuery } from "#/__generated__/core/EmployeeDevicesPageQuery.graphql";
 
-import { CreateEnrollmentTokenForm } from "./_components/CreateEnrollmentTokenForm";
+import { CreateDeviceForm } from "./_components/CreateDeviceForm";
 
 export const employeeDevicesPageQuery = graphql`
   query EmployeeDevicesPageQuery($organizationId: ID!) {
     organization: node(id: $organizationId) @required(action: THROW) {
       __typename
       ... on Organization {
-        canCreateEnrollmentToken: permission(
-          action: "core:device-enrollment-token:create"
-        )
+        canCreateDevice: permission(action: "core:device:create")
       }
     }
   }
@@ -59,12 +57,12 @@ export function EmployeeDevicesPage({ queryRef }: EmployeeDevicesPageProps) {
         <h1 className="text-2xl font-semibold">{__("Enroll your device")}</h1>
         <p className="text-sm text-tertiary">
           {__(
-            "Use browser enrollment for the easiest setup. You can still generate tokens below for manual CLI or MDM installs.",
+            "Use browser enrollment for the easiest setup. You can still create a device below for manual CLI or MDM installs.",
           )}
         </p>
       </header>
 
-      {organization.canCreateEnrollmentToken && (
+      {organization.canCreateDevice && (
         <Card padded className="space-y-2">
           <h2 className="text-base font-medium">{__("Recommended")}</h2>
           <p className="text-sm text-tertiary">
@@ -78,7 +76,7 @@ export function EmployeeDevicesPage({ queryRef }: EmployeeDevicesPageProps) {
         </Card>
       )}
 
-      {organization.canCreateEnrollmentToken && <CreateEnrollmentTokenForm />}
+      {organization.canCreateDevice && <CreateDeviceForm />}
     </div>
   );
 }

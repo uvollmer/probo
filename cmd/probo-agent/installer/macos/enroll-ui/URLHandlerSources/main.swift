@@ -156,8 +156,8 @@ private final class URLHandlerApp: NSObject, NSApplicationDelegate {
         if normalized.contains("already enrolled") {
             return "This device is already enrolled."
         }
-        if normalized.contains("token") && normalized.contains("missing") {
-            return "Enrollment token is missing or invalid."
+        if normalized.contains("key") && normalized.contains("missing") {
+            return "Device API key is missing or invalid."
         }
 
         return "Enrollment failed. Please try again."

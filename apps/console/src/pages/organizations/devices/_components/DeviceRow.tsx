@@ -16,6 +16,7 @@ import { formatDate, formatError, type GraphQLError, sprintf } from "@probo/help
 import { useTranslate } from "@probo/i18n";
 import {
   ActionDropdown,
+  Badge,
   DropdownItem,
   IconTrashCan,
   Td,
@@ -33,6 +34,7 @@ import { useOrganizationId } from "#/hooks/useOrganizationId";
 const deviceRowFragment = graphql`
   fragment DeviceRowFragment on Device {
     id
+    state
     hostname
     platform
     osVersion
@@ -51,6 +53,7 @@ const revokeDeviceMutation = graphql`
       device {
         id
         revokedAt
+        state
       }
     }
   }
@@ -61,11 +64,16 @@ interface DeviceRowProps {
   fKey: DeviceRowFragment$key;
 }
 
+function displayValue(value: string | null | undefined, pendingLabel: string) {
+  return value && value.length > 0 ? value : pendingLabel;
+}
+
 export function DeviceRow({ canRevoke, fKey }: DeviceRowProps) {
   const { __ } = useTranslate();
   const organizationId = useOrganizationId();
   const { toast } = useToast();
   const confirm = useConfirm();
+  const pendingLabel = __("(pending)");
 
   const device = useFragment(deviceRowFragment, fKey);
 
@@ -113,7 +121,7 @@ export function DeviceRow({ canRevoke, fKey }: DeviceRowProps) {
           __(
             "Revoke device \"%s\"? The agent on the device will stop reporting and must be re-enrolled.",
           ),
-          device.hostname,
+          displayValue(device.hostname, pendingLabel),
         ),
         variant: "danger",
         label: __("Revoke"),
@@ -122,13 +130,16 @@ export function DeviceRow({ canRevoke, fKey }: DeviceRowProps) {
   };
 
   const summary = postureSummary(device.latestPostures);
-  const isRevoked = Boolean(device.revokedAt);
+  const isRevoked = device.state === "REVOKED";
 
   return (
     <Tr to={`/organizations/${organizationId}/devices/${device.id}`}>
-      <Td>{device.hostname}</Td>
-      <Td>{device.platform}</Td>
-      <Td>{device.osVersion}</Td>
+      <Td>{displayValue(device.hostname, pendingLabel)}</Td>
+      <Td>
+        <Badge variant={stateVariant(device.state)}>{device.state}</Badge>
+      </Td>
+      <Td>{displayValue(device.platform, pendingLabel)}</Td>
+      <Td>{displayValue(device.osVersion, pendingLabel)}</Td>
       <Td>{device.lastSeenAt ? formatDate(device.lastSeenAt) : __("Never")}</Td>
       <Td>
         <span className="text-green-700">{summary.pass}</span>
@@ -152,6 +163,19 @@ export function DeviceRow({ canRevoke, fKey }: DeviceRowProps) {
       </Td>
     </Tr>
   );
+}
+
+function stateVariant(
+  state: string,
+): "success" | "danger" | "warning" | "info" {
+  switch (state) {
+    case "ACTIVE":
+      return "success";
+    case "REVOKED":
+      return "danger";
+    default:
+      return "warning";
+  }
 }
 
 function postureSummary(

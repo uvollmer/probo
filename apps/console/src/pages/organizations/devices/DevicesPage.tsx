@@ -112,6 +112,7 @@ export function DevicesPage({ queryRef }: DevicesPageProps) {
         <Thead>
           <Tr>
             <SortableTh field="HOSTNAME">{__("Hostname")}</SortableTh>
+            <Th>{__("State")}</Th>
             <Th>{__("Platform")}</Th>
             <Th>{__("OS version")}</Th>
             <SortableTh field="LAST_SEEN_AT">{__("Last seen")}</SortableTh>

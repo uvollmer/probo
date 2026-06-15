@@ -29,12 +29,12 @@ func TestParseEnrollURL(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			serverURL, token, err := ParseEnrollURL(
-				"probo://enroll?server=https%3A%2F%2Fus.console.getprobo.com&token=secret-token",
+			serverURL, apiKey, err := ParseEnrollURL(
+				"probo://enroll?server=https%3A%2F%2Fus.console.getprobo.com&key=secret-key",
 			)
 			require.NoError(t, err)
 			assert.Equal(t, "https://us.console.getprobo.com", serverURL)
-			assert.Equal(t, "secret-token", token)
+			assert.Equal(t, "secret-key", apiKey)
 		},
 	)
 
@@ -43,12 +43,12 @@ func TestParseEnrollURL(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			serverURL, token, err := ParseEnrollURL(
-				"probo:///enroll?server=https%3A%2F%2Feu.console.getprobo.com&token=abc123",
+			serverURL, apiKey, err := ParseEnrollURL(
+				"probo:///enroll?server=https%3A%2F%2Feu.console.getprobo.com&key=abc123",
 			)
 			require.NoError(t, err)
 			assert.Equal(t, "https://eu.console.getprobo.com", serverURL)
-			assert.Equal(t, "abc123", token)
+			assert.Equal(t, "abc123", apiKey)
 		},
 	)
 
@@ -58,7 +58,7 @@ func TestParseEnrollURL(t *testing.T) {
 			t.Parallel()
 
 			_, _, err := ParseEnrollURL(
-				"https://example.com/enroll?server=https%3A%2F%2Fus.console.getprobo.com&token=secret-token",
+				"https://example.com/enroll?server=https%3A%2F%2Fus.console.getprobo.com&key=secret-key",
 			)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "probo scheme")
@@ -66,7 +66,7 @@ func TestParseEnrollURL(t *testing.T) {
 	)
 
 	t.Run(
-		"rejects missing token",
+		"rejects missing key",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -74,7 +74,7 @@ func TestParseEnrollURL(t *testing.T) {
 				"probo://enroll?server=https%3A%2F%2Fus.console.getprobo.com",
 			)
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "token is missing")
+			assert.ErrorContains(t, err, "api key is missing")
 		},
 	)
 
@@ -84,7 +84,7 @@ func TestParseEnrollURL(t *testing.T) {
 			t.Parallel()
 
 			_, _, err := ParseEnrollURL(
-				"probo://enroll?server=https%3A%2F%2Fus.console.getprobo.com%2Fextra&token=abc123",
+				"probo://enroll?server=https%3A%2F%2Fus.console.getprobo.com%2Fextra&key=abc123",
 			)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "invalid server")

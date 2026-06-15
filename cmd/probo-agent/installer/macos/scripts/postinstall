@@ -124,7 +124,7 @@ register_enrollment_url_scheme() {
 # unattended enrollment. Recognized keys (shell-style):
 #
 #   PROBO_SERVER_URL=https://app.getprobo.com
-#   PROBO_ENROLLMENT_TOKEN=<token>
+#   PROBO_API_KEY=<api-key>
 #   PROBO_NO_AUTO_UPDATE=true
 #
 # Parse KEY=VALUE lines without sourcing or eval so a crafted conf
@@ -142,7 +142,7 @@ if [ -f "${CONF_FILE}" ]; then
     echo "Found ${CONF_FILE}, attempting unattended enrollment."
 
     CONF_SERVER=""
-    CONF_TOKEN=""
+    CONF_API_KEY=""
     CONF_NOUPDATE=""
     while IFS= read -r line || [ -n "$line" ]; do
         line="${line%%#*}"
@@ -154,8 +154,8 @@ if [ -f "${CONF_FILE}" ]; then
             PROBO_SERVER_URL=*)
                 CONF_SERVER="$(strip_conf_value "${line#PROBO_SERVER_URL=}")"
                 ;;
-            PROBO_ENROLLMENT_TOKEN=*)
-                CONF_TOKEN="$(strip_conf_value "${line#PROBO_ENROLLMENT_TOKEN=}")"
+            PROBO_API_KEY=*)
+                CONF_API_KEY="$(strip_conf_value "${line#PROBO_API_KEY=}")"
                 ;;
             PROBO_NO_AUTO_UPDATE=*)
                 CONF_NOUPDATE="$(strip_conf_value "${line#PROBO_NO_AUTO_UPDATE=}")"
@@ -163,8 +163,8 @@ if [ -f "${CONF_FILE}" ]; then
         esac
     done < "${CONF_FILE}"
 
-    if [ -z "${CONF_SERVER}" ] || [ -z "${CONF_TOKEN}" ]; then
-        echo "warning: ${CONF_FILE} is missing PROBO_SERVER_URL or PROBO_ENROLLMENT_TOKEN; skipping enrollment."
+    if [ -z "${CONF_SERVER}" ] || [ -z "${CONF_API_KEY}" ]; then
+        echo "warning: ${CONF_FILE} is missing PROBO_SERVER_URL or PROBO_API_KEY; skipping enrollment."
     else
         # Build argv from the first element so "${INSTALL_ARGS[@]}"
         # is never empty — macOS /bin/bash 3.2 treats an unset empty
@@ -172,7 +172,7 @@ if [ -f "${CONF_FILE}" ]; then
         INSTALL_ARGS=(
             install
             --server "${CONF_SERVER}"
-            --enrollment-token "${CONF_TOKEN}"
+            --api-key "${CONF_API_KEY}"
         )
         case "${CONF_NOUPDATE}" in
             1|true|TRUE|yes|YES) INSTALL_ARGS+=(--no-auto-update) ;;
@@ -185,7 +185,7 @@ if [ -f "${CONF_FILE}" ]; then
         fi
     fi
 
-    # The token in the conf file is sensitive; clear it whatever
+    # The api key in the conf file is sensitive; clear it whatever
     # the outcome so a successful install does not leave secrets
     # in /tmp.
     rm -f "${CONF_FILE}"

@@ -16,12 +16,12 @@
 
 package tray
 
-func RunElevatedInstall(exePath string, serverURL string, token string) error {
+func RunElevatedInstall(exePath string, serverURL string, apiKey string) error {
 	return runElevatedInstall(
 		Options{
 			ExePath:   exePath,
 			ServerURL: serverURL,
 		},
-		token,
+		apiKey,
 	)
 }

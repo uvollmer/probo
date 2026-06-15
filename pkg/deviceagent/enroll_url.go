@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-func ParseEnrollURL(raw string) (serverURL string, token string, err error) {
+func ParseEnrollURL(raw string) (serverURL string, apiKey string, err error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return "", "", errors.New("enrollment URL is required")
@@ -47,10 +47,10 @@ func ParseEnrollURL(raw string) (serverURL string, token string, err error) {
 		return "", "", fmt.Errorf("invalid server in enrollment URL: %w", err)
 	}
 
-	token = strings.TrimSpace(query.Get("token"))
-	if token == "" {
-		return "", "", errors.New("enrollment token is missing")
+	apiKey = strings.TrimSpace(query.Get("key"))
+	if apiKey == "" {
+		return "", "", errors.New("device api key is missing")
 	}
 
-	return serverURL, token, nil
+	return serverURL, apiKey, nil
 }

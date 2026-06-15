@@ -52,32 +52,18 @@ func NewClient(serverURL, apiKey, userAgent string) *Client {
 }
 
 type (
-	EnrollRequest struct {
-		EnrollmentToken string  `json:"enrollment_token"`
-		HardwareUUID    string  `json:"hardware_uuid"`
-		SerialNumber    *string `json:"serial_number,omitempty"`
-		Hostname        string  `json:"hostname"`
-		Platform        string  `json:"platform"`
-		OSVersion       string  `json:"os_version"`
-		AgentVersion    string  `json:"agent_version"`
-	}
-
-	EnrollResponse struct {
-		DeviceID         string `json:"device_id"`
-		APIKey           string `json:"api_key"`
-		HeartbeatSeconds int    `json:"heartbeat_interval_seconds"`
-		PostureSeconds   int    `json:"posture_interval_seconds"`
-		ServerTime       string `json:"server_time"`
-	}
-
 	HeartbeatRequest struct {
-		AgentVersion string `json:"agent_version,omitempty"`
-		Hostname     string `json:"hostname,omitempty"`
-		OSVersion    string `json:"os_version,omitempty"`
-		UptimeSec    int64  `json:"uptime_seconds,omitempty"`
+		HardwareUUID string  `json:"hardware_uuid"`
+		SerialNumber *string `json:"serial_number,omitempty"`
+		Hostname     string  `json:"hostname"`
+		Platform     string  `json:"platform"`
+		OSVersion    string  `json:"os_version"`
+		AgentVersion string  `json:"agent_version"`
+		UptimeSec    int64   `json:"uptime_seconds,omitempty"`
 	}
 
 	HeartbeatResponse struct {
+		DeviceID         string `json:"device_id"`
 		HeartbeatSeconds int    `json:"heartbeat_interval_seconds"`
 		PostureSeconds   int    `json:"posture_interval_seconds"`
 		ServerTime       string `json:"server_time"`
@@ -94,23 +80,6 @@ type (
 		Results []PostureResultPayload `json:"results"`
 	}
 )
-
-// Enroll exchanges an enrollment token for a device key.
-func (c *Client) Enroll(ctx context.Context, req EnrollRequest) (*EnrollResponse, error) {
-	var resp EnrollResponse
-	if err := c.do(
-		ctx,
-		http.MethodPost,
-		"/api/agent/v1/enroll",
-		false,
-		req,
-		&resp,
-	); err != nil {
-		return nil, err
-	}
-
-	return &resp, nil
-}
 
 // Heartbeat sends a periodic device heartbeat.
 func (c *Client) Heartbeat(ctx context.Context, req HeartbeatRequest) (*HeartbeatResponse, error) {

@@ -99,7 +99,7 @@ func newEnrollURLCmd() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			serverURL, token, err := deviceagent.ParseEnrollURL(args[0])
+			serverURL, apiKey, err := deviceagent.ParseEnrollURL(args[0])
 			if err != nil {
 				return err
 			}
@@ -114,7 +114,7 @@ func newEnrollURLCmd() *cobra.Command {
 				return fmt.Errorf("cannot resolve current executable path: %w", err)
 			}
 
-			if err := tray.RunElevatedInstall(exePath, serverURL, token); err != nil {
+			if err := tray.RunElevatedInstall(exePath, serverURL, apiKey); err != nil {
 				return fmt.Errorf("cannot start elevated enrollment install: %w", err)
 			}
 
@@ -165,10 +165,10 @@ func newAgentLogger() *log.Logger {
 
 func newInstallCmd() *cobra.Command {
 	var (
-		serverURL       string
-		enrollmentToken string
-		skipService     bool
-		noAutoUpdate    bool
+		serverURL    string
+		apiKey       string
+		skipService  bool
+		noAutoUpdate bool
 	)
 
 	cmd := &cobra.Command{
@@ -179,14 +179,14 @@ func newInstallCmd() *cobra.Command {
 				return errors.New("--server is required")
 			}
 
-			if enrollmentToken == "" {
-				if v := os.Getenv("PROBO_TOKEN"); v != "" {
-					enrollmentToken = v
+			if apiKey == "" {
+				if v := os.Getenv("PROBO_API_KEY"); v != "" {
+					apiKey = v
 				}
 			}
 
-			if enrollmentToken == "" {
-				return errors.New("--enrollment-token (or PROBO_TOKEN env var) is required")
+			if apiKey == "" {
+				return errors.New("--api-key (or PROBO_API_KEY env var) is required")
 			}
 
 			dir := resolveDir(cmd)
@@ -196,12 +196,12 @@ func newInstallCmd() *cobra.Command {
 
 			agent := deviceagent.New(dir, version, newAgentLogger())
 
-			resp, err := agent.EnrollNewDevice(ctx, strings.TrimRight(serverURL, "/"), enrollmentToken)
+			resp, err := agent.ConfigureDevice(ctx, strings.TrimRight(serverURL, "/"), apiKey)
 			if err != nil {
-				return fmt.Errorf("enrollment failed: %w", err)
+				return fmt.Errorf("device configuration failed: %w", err)
 			}
 
-			fmt.Printf("Enrolled device %s (heartbeat %ds, posture %ds)\n",
+			fmt.Printf("Configured device %s (heartbeat %ds, posture %ds)\n",
 				resp.DeviceID, resp.HeartbeatSeconds, resp.PostureSeconds)
 
 			if noAutoUpdate {
@@ -238,7 +238,7 @@ func newInstallCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&serverURL, "server", "", "Probo server base URL (e.g. https://us.console.getprobo.com)")
-	cmd.Flags().StringVar(&enrollmentToken, "enrollment-token", "", "device enrollment token issued by an admin")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "device API key issued when the device was created")
 	cmd.Flags().BoolVar(&skipService, "skip-service", false, "register the device but do not install the OS service")
 	cmd.Flags().BoolVar(&noAutoUpdate, "no-auto-update", false, "disable automatic upgrades of the agent binary")
 

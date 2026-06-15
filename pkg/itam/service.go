@@ -33,20 +33,16 @@ import (
 )
 
 var (
-	// ErrEnrollmentTokenInvalid is returned when the presented
-	// enrollment token is unknown, revoked, expired, or exhausted.
-	ErrEnrollmentTokenInvalid = errors.New("enrollment token is invalid")
-
 	// ErrDeviceRevoked is returned when the authenticated device has
 	// been revoked.
 	ErrDeviceRevoked = errors.New("device is revoked")
+
+	// ErrDeviceHardwareConflict is returned when activation would
+	// duplicate an existing (organization_id, hardware_uuid) pair.
+	ErrDeviceHardwareConflict = errors.New("device hardware uuid already enrolled")
 )
 
 const (
-	// EnrollmentTokenRawLength is the random byte length of an
-	// enrollment token secret (43 chars once base64url-encoded).
-	EnrollmentTokenRawLength = 32
-
 	// APIKeyRawLength is the random byte length of a device API key
 	// secret (64 chars once base64url-encoded).
 	APIKeyRawLength = 48
@@ -55,46 +51,33 @@ const (
 type (
 	// Service is the IT Asset Management service. Admin operations are
 	// tenant-scoped via a caller-supplied scope; agent-facing operations
-	// (enroll, authenticate, heartbeat, postures, unenroll) resolve
-	// their own scope, since the agent does not know its tenant until
-	// enrollment.
+	// (authenticate, heartbeat, postures, unenroll) resolve their own
+	// scope, since the agent does not know its tenant until activation.
 	Service struct {
 		pg     *pg.Client
 		logger *log.Logger
 	}
 
-	CreateEnrollmentTokenRequest struct {
-		OrganizationID      gid.GID
-		Name                string
-		Validity            time.Duration
-		MaxUses             *int
-		CreatedByIdentityID *gid.GID
+	CreateDeviceRequest struct {
+		OrganizationID gid.GID
+		OwnerID        *gid.GID
 	}
 
-	// CreateEnrollmentTokenResult carries the persisted token and its
-	// plaintext secret. Only the hash is stored, so Secret is available
-	// only at this point.
-	CreateEnrollmentTokenResult struct {
-		Token  *coredata.DeviceEnrollmentToken
-		Secret string
-	}
-
-	EnrollDeviceRequest struct {
-		EnrollmentSecret string
-		HardwareUUID     string
-		SerialNumber     *string
-		Hostname         string
-		Platform         coredata.DevicePlatform
-		OSVersion        string
-		AgentVersion     string
-	}
-
-	// EnrollDeviceResult carries the device row and the plaintext API
+	// CreateDeviceResult carries the device row and the plaintext API
 	// key the agent must persist. Only the hash is stored, so APIKey is
 	// available only at this point.
-	EnrollDeviceResult struct {
+	CreateDeviceResult struct {
 		Device *coredata.Device
 		APIKey string
+	}
+
+	RecordHeartbeatRequest struct {
+		HardwareUUID string
+		SerialNumber *string
+		Hostname     string
+		Platform     coredata.DevicePlatform
+		OSVersion    string
+		AgentVersion string
 	}
 
 	RecordPostureResult struct {
@@ -102,12 +85,6 @@ type (
 		Status     coredata.DevicePostureStatus
 		Evidence   json.RawMessage
 		ObservedAt time.Time
-	}
-
-	EnrollmentStatusResult struct {
-		Token           *coredata.DeviceEnrollmentToken
-		Device          *coredata.Device
-		FirstActivityAt *time.Time
 	}
 )
 
@@ -120,11 +97,12 @@ func NewService(pgClient *pg.Client, iamSvc *iam.Service, logger *log.Logger) *S
 	}
 }
 
-// hashSecret hashes an enrollment token or device API key for storage
-// and lookup. Unsalted SHA-256 is sufficient: the input is a random
-// secret with at least 256 bits of entropy.
+// hashSecret hashes a device API key for storage and lookup. Unsalted
+// SHA-256 is sufficient: the input is a random secret with at least 256
+// bits of entropy.
 func hashSecret(secret string) []byte {
 	sum := sha256.Sum256([]byte(secret))
+
 	return sum[:]
 }
 
@@ -135,42 +113,35 @@ func generateSecret(rawLen int) (string, error) {
 	if _, err := rand.Read(buf); err != nil {
 		return "", fmt.Errorf("cannot generate random secret: %w", err)
 	}
+
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-func (s *Service) CreateEnrollmentToken(
+func (s *Service) CreateDevice(
 	ctx context.Context,
 	scope coredata.Scoper,
-	req CreateEnrollmentTokenRequest,
-) (*CreateEnrollmentTokenResult, error) {
+	req CreateDeviceRequest,
+) (*CreateDeviceResult, error) {
 	if req.OrganizationID == gid.Nil {
 		return nil, fmt.Errorf("organization_id is required")
 	}
 
-	if req.Name == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-	if req.Validity <= 0 {
-		req.Validity = 7 * 24 * time.Hour
-	}
-
-	secret, err := generateSecret(EnrollmentTokenRawLength)
+	apiKey, err := generateSecret(APIKeyRawLength)
 	if err != nil {
 		return nil, err
 	}
 
+	apiKeyHash := hashSecret(apiKey)
 	now := time.Now()
-	token := &coredata.DeviceEnrollmentToken{
-		ID:                  gid.New(req.OrganizationID.TenantID(), coredata.DeviceEnrollmentTokenEntityType),
-		OrganizationID:      req.OrganizationID,
-		Name:                req.Name,
-		TokenHash:           hashSecret(secret),
-		CreatedByIdentityID: req.CreatedByIdentityID,
-		ExpiresAt:           now.Add(req.Validity),
-		MaxUses:             req.MaxUses,
-		UsedCount:           0,
-		CreatedAt:           now,
-		UpdatedAt:           now,
+
+	device := &coredata.Device{
+		ID:             gid.New(req.OrganizationID.TenantID(), coredata.DeviceEntityType),
+		OrganizationID: req.OrganizationID,
+		State:          coredata.DeviceStatePending,
+		APIKeyHash:     apiKeyHash,
+		OwnerID:        req.OwnerID,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	err = s.pg.WithTx(
@@ -181,8 +152,8 @@ func (s *Service) CreateEnrollmentToken(
 				return fmt.Errorf("cannot load organization: %w", err)
 			}
 
-			if err := token.Insert(ctx, conn, scope); err != nil {
-				return fmt.Errorf("cannot insert device enrollment token: %w", err)
+			if err := device.Insert(ctx, conn, scope); err != nil {
+				return fmt.Errorf("cannot insert device: %w", err)
 			}
 
 			return nil
@@ -192,79 +163,7 @@ func (s *Service) CreateEnrollmentToken(
 		return nil, err
 	}
 
-	return &CreateEnrollmentTokenResult{Token: token, Secret: secret}, nil
-}
-
-func (s *Service) RevokeEnrollmentToken(
-	ctx context.Context,
-	scope coredata.Scoper,
-	tokenID gid.GID,
-) (*coredata.DeviceEnrollmentToken, error) {
-	token := &coredata.DeviceEnrollmentToken{}
-
-	err := s.pg.WithTx(
-		ctx,
-		func(ctx context.Context, conn pg.Tx) error {
-			if err := token.LoadByID(ctx, conn, scope, tokenID); err != nil {
-				return fmt.Errorf("cannot load device enrollment token: %w", err)
-			}
-
-			if err := token.Revoke(ctx, conn, scope); err != nil {
-				return fmt.Errorf("cannot revoke device enrollment token: %w", err)
-			}
-
-			return nil
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return token, nil
-}
-
-func (s *Service) GetEnrollmentStatus(
-	ctx context.Context,
-	scope coredata.Scoper,
-	enrollmentTokenID gid.GID,
-) (*EnrollmentStatusResult, error) {
-	result := &EnrollmentStatusResult{}
-	err := s.pg.WithConn(
-		ctx,
-		func(ctx context.Context, conn pg.Querier) error {
-			token := &coredata.DeviceEnrollmentToken{}
-			if err := token.LoadByID(ctx, conn, scope, enrollmentTokenID); err != nil {
-				return fmt.Errorf("cannot load device enrollment token: %w", err)
-			}
-			result.Token = token
-
-			device := &coredata.Device{}
-			if err := device.LoadLatestByEnrollmentTokenID(ctx, conn, scope, enrollmentTokenID); err != nil {
-				if errors.Is(err, coredata.ErrResourceNotFound) {
-					return nil
-				}
-				return fmt.Errorf("cannot load latest device by enrollment token: %w", err)
-			}
-			result.Device = device
-
-			posture := &coredata.DevicePosture{}
-			if err := posture.LoadFirstObservedAtByDeviceID(ctx, conn, scope, device.ID); err != nil {
-				if errors.Is(err, coredata.ErrResourceNotFound) {
-					return nil
-				}
-				return fmt.Errorf("cannot load first device activity posture: %w", err)
-			}
-
-			result.FirstActivityAt = &posture.ObservedAt
-
-			return nil
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	return &CreateDeviceResult{Device: device, APIKey: apiKey}, nil
 }
 
 func (s *Service) GetDevice(
@@ -348,8 +247,8 @@ func (s *Service) RevokeDevice(
 	device := &coredata.Device{}
 
 	err := s.pg.WithTx(
-		ctx, func(
-			ctx context.Context, conn pg.Tx) error {
+		ctx,
+		func(ctx context.Context, conn pg.Tx) error {
 			if err := device.LoadByID(ctx, conn, scope, deviceID); err != nil {
 				return fmt.Errorf("cannot load device: %w", err)
 			}
@@ -447,106 +346,6 @@ func (s *Service) GetPostureHistory(
 	return postures, nil
 }
 
-func (s *Service) EnrollDevice(
-	ctx context.Context,
-	req EnrollDeviceRequest,
-) (*EnrollDeviceResult, error) {
-	if req.EnrollmentSecret == "" {
-		return nil, ErrEnrollmentTokenInvalid
-	}
-
-	if req.HardwareUUID == "" {
-		return nil, fmt.Errorf("hardware_uuid is required")
-	}
-
-	if !req.Platform.IsValid() {
-		return nil, fmt.Errorf("invalid platform: %q", req.Platform)
-	}
-
-	tokenHash := hashSecret(req.EnrollmentSecret)
-	apiKey, err := generateSecret(APIKeyRawLength)
-	if err != nil {
-		return nil, err
-	}
-
-	apiKeyHash := hashSecret(apiKey)
-
-	var device *coredata.Device
-	now := time.Now()
-
-	err = s.pg.WithTx(ctx, func(ctx context.Context, conn pg.Tx) error {
-		token := &coredata.DeviceEnrollmentToken{}
-		if err := token.LoadByTokenHashForUpdate(ctx, conn, tokenHash); err != nil {
-			if errors.Is(err, coredata.ErrResourceNotFound) {
-				return ErrEnrollmentTokenInvalid
-			}
-			return fmt.Errorf("cannot load device enrollment token: %w", err)
-		}
-		if !token.IsUsable(now) {
-			return ErrEnrollmentTokenInvalid
-		}
-		enrollmentTokenID := token.ID
-
-		scope := coredata.NewScope(token.OrganizationID.TenantID())
-
-		existing := &coredata.Device{}
-		err := existing.LoadByHardwareUUID(ctx, conn, scope, token.OrganizationID, req.HardwareUUID)
-		switch {
-		case err == nil:
-			// Re-enrollment: rotate the API key, refresh metadata,
-			// and clear any prior revocation so installer re-runs
-			// are idempotent.
-			existing.APIKeyHash = apiKeyHash
-			existing.Hostname = req.Hostname
-			existing.SerialNumber = req.SerialNumber
-			existing.Platform = req.Platform
-			existing.OSVersion = req.OSVersion
-			existing.AgentVersion = req.AgentVersion
-			existing.EnrollmentTokenID = &enrollmentTokenID
-			existing.LastSeenAt = now
-			existing.UpdatedAt = now
-			existing.RevokedAt = nil
-			if err := existing.Reenroll(ctx, conn, scope); err != nil {
-				return fmt.Errorf("cannot re-enroll device: %w", err)
-			}
-			device = existing
-		case errors.Is(err, coredata.ErrResourceNotFound):
-			device = &coredata.Device{
-				ID:                gid.New(token.OrganizationID.TenantID(), coredata.DeviceEntityType),
-				TenantID:          token.OrganizationID.TenantID(),
-				OrganizationID:    token.OrganizationID,
-				HardwareUUID:      req.HardwareUUID,
-				SerialNumber:      req.SerialNumber,
-				Hostname:          req.Hostname,
-				Platform:          req.Platform,
-				OSVersion:         req.OSVersion,
-				AgentVersion:      req.AgentVersion,
-				EnrollmentTokenID: &enrollmentTokenID,
-				APIKeyHash:        apiKeyHash,
-				EnrolledAt:        now,
-				LastSeenAt:        now,
-				CreatedAt:         now,
-				UpdatedAt:         now,
-			}
-			if err := device.Insert(ctx, conn, scope); err != nil {
-				return fmt.Errorf("cannot insert device: %w", err)
-			}
-		default:
-			return fmt.Errorf("cannot check existing device: %w", err)
-		}
-
-		if err := token.IncrementUsage(ctx, conn); err != nil {
-			return fmt.Errorf("cannot increment enrollment token usage: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &EnrollDeviceResult{Device: device, APIKey: apiKey}, nil
-}
-
 // AuthenticateDevice resolves a device API key to its device row.
 // Returns coredata.ErrResourceNotFound when no device matches the key
 // and ErrDeviceRevoked when the matching device has been revoked.
@@ -557,6 +356,7 @@ func (s *Service) AuthenticateDevice(
 	if apiKey == "" {
 		return nil, coredata.ErrResourceNotFound
 	}
+
 	hash := hashSecret(apiKey)
 
 	device := &coredata.Device{}
@@ -566,53 +366,94 @@ func (s *Service) AuthenticateDevice(
 	if err != nil {
 		return nil, err
 	}
-	if device.RevokedAt != nil {
+
+	if device.State == coredata.DeviceStateRevoked {
 		return nil, ErrDeviceRevoked
 	}
+
 	return device, nil
 }
 
 // RecordHeartbeat refreshes the device's last-seen timestamp and any
-// version fields the agent sends.
+// version fields the agent sends. On the first heartbeat for a PENDING
+// device, hardware metadata is recorded and the device is activated.
 func (s *Service) RecordHeartbeat(
 	ctx context.Context,
 	scope coredata.Scoper,
 	deviceID gid.GID,
-	hostname string,
-	osVersion string,
-	agentVersion string,
-) error {
-	return s.pg.WithTx(
+	req RecordHeartbeatRequest,
+) (*coredata.Device, error) {
+	if req.HardwareUUID == "" {
+		return nil, fmt.Errorf("hardware_uuid is required")
+	}
+
+	if req.Hostname == "" {
+		return nil, fmt.Errorf("hostname is required")
+	}
+
+	if !req.Platform.IsValid() {
+		return nil, fmt.Errorf("invalid platform: %q", req.Platform)
+	}
+
+	if req.OSVersion == "" {
+		return nil, fmt.Errorf("os_version is required")
+	}
+
+	if req.AgentVersion == "" {
+		return nil, fmt.Errorf("agent_version is required")
+	}
+
+	device := &coredata.Device{}
+
+	err := s.pg.WithTx(
 		ctx,
 		func(ctx context.Context, conn pg.Tx) error {
-			device := &coredata.Device{}
 			if err := device.LoadByID(ctx, conn, scope, deviceID); err != nil {
 				return fmt.Errorf("cannot load device: %w", err)
 			}
 
-			if device.RevokedAt != nil {
+			if device.State == coredata.DeviceStateRevoked {
 				return ErrDeviceRevoked
 			}
 
-			if hostname != "" {
-				device.Hostname = hostname
-			}
+			hardwareUUID := req.HardwareUUID
+			hostname := req.Hostname
+			platform := req.Platform
+			osVersion := req.OSVersion
+			agentVersion := req.AgentVersion
 
-			if osVersion != "" {
-				device.OSVersion = osVersion
-			}
+			device.HardwareUUID = &hardwareUUID
+			device.SerialNumber = req.SerialNumber
+			device.Hostname = &hostname
+			device.Platform = &platform
+			device.OSVersion = &osVersion
+			device.AgentVersion = &agentVersion
 
-			if agentVersion != "" {
-				device.AgentVersion = agentVersion
-			}
+			switch device.State {
+			case coredata.DeviceStatePending:
+				if err := device.Activate(ctx, conn, scope); err != nil {
+					if errors.Is(err, coredata.ErrResourceAlreadyExists) {
+						return ErrDeviceHardwareConflict
+					}
 
-			if err := device.UpdateHeartbeat(ctx, conn, scope); err != nil {
-				return fmt.Errorf("cannot update device heartbeat: %w", err)
+					return fmt.Errorf("cannot activate device: %w", err)
+				}
+			case coredata.DeviceStateActive:
+				if err := device.UpdateHeartbeat(ctx, conn, scope); err != nil {
+					return fmt.Errorf("cannot update device heartbeat: %w", err)
+				}
+			default:
+				return ErrDeviceRevoked
 			}
 
 			return nil
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	return device, nil
 }
 
 // RecordPostures appends posture results for a device.
@@ -625,6 +466,7 @@ func (s *Service) RecordPostures(
 	if len(results) == 0 {
 		return nil
 	}
+
 	now := time.Now()
 
 	return s.pg.WithTx(
@@ -635,7 +477,7 @@ func (s *Service) RecordPostures(
 				return fmt.Errorf("cannot load device: %w", err)
 			}
 
-			if device.RevokedAt != nil {
+			if device.State != coredata.DeviceStateActive {
 				return ErrDeviceRevoked
 			}
 
@@ -658,8 +500,8 @@ func (s *Service) RecordPostures(
 				if err := posture.Insert(ctx, conn, scope); err != nil {
 					return fmt.Errorf("cannot insert device posture: %w", err)
 				}
-
 			}
+
 			return nil
 		},
 	)
@@ -679,6 +521,7 @@ func (s *Service) UnenrollDevice(
 			if err := device.LoadByID(ctx, conn, scope, deviceID); err != nil {
 				return fmt.Errorf("cannot load device: %w", err)
 			}
+
 			if err := device.Revoke(ctx, conn, scope); err != nil {
 				return fmt.Errorf("cannot revoke device: %w", err)
 			}

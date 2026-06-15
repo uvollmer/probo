@@ -7,10 +7,10 @@ package console_v1
 
 import (
 	"context"
-	"time"
 
 	"go.gearno.de/kit/log"
 	"go.probo.inc/probo/pkg/itam"
+	"go.probo.inc/probo/pkg/server/api/authn"
 	"go.probo.inc/probo/pkg/server/api/console/v1/schema"
 	"go.probo.inc/probo/pkg/server/api/console/v1/types"
 	"go.probo.inc/probo/pkg/server/gqlutils"
@@ -47,50 +47,31 @@ func (r *deviceConnectionResolver) TotalCount(ctx context.Context, obj *types.De
 	return 0, gqlutils.Internal(ctx)
 }
 
-// CreateDeviceEnrollmentToken is the resolver for the createDeviceEnrollmentToken field.
-func (r *mutationResolver) CreateDeviceEnrollmentToken(ctx context.Context, input types.CreateDeviceEnrollmentTokenInput) (*types.CreateDeviceEnrollmentTokenPayload, error) {
-	scope, err := r.authorize(ctx, input.OrganizationID, itam.ActionDeviceEnrollmentTokenCreate)
+// CreateDevice is the resolver for the createDevice field.
+func (r *mutationResolver) CreateDevice(ctx context.Context, input types.CreateDeviceInput) (*types.CreateDevicePayload, error) {
+	scope, err := r.authorize(ctx, input.OrganizationID, itam.ActionDeviceCreate)
 	if err != nil {
 		return nil, err
 	}
 
-	validity := time.Duration(0)
-	if input.ValiditySeconds != nil && *input.ValiditySeconds > 0 {
-		validity = time.Duration(*input.ValiditySeconds) * time.Second
+	ownerID := input.OwnerIdentityID
+	if ownerID == nil {
+		identity := authn.IdentityFromContext(ctx)
+		ownerID = &identity.ID
 	}
 
-	result, err := r.itam.CreateEnrollmentToken(ctx, scope, itam.CreateEnrollmentTokenRequest{
+	result, err := r.itam.CreateDevice(ctx, scope, itam.CreateDeviceRequest{
 		OrganizationID: input.OrganizationID,
-		Name:           input.Name,
-		Validity:       validity,
-		MaxUses:        input.MaxUses,
+		OwnerID:        ownerID,
 	})
 	if err != nil {
-		r.logger.ErrorCtx(ctx, "cannot create device enrollment token", log.Error(err))
+		r.logger.ErrorCtx(ctx, "cannot create device", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
 	}
 
-	return &types.CreateDeviceEnrollmentTokenPayload{
-		EnrollmentToken: types.NewDeviceEnrollmentToken(result.Token),
-		Secret:          result.Secret,
-	}, nil
-}
-
-// RevokeDeviceEnrollmentToken is the resolver for the revokeDeviceEnrollmentToken field.
-func (r *mutationResolver) RevokeDeviceEnrollmentToken(ctx context.Context, input types.RevokeDeviceEnrollmentTokenInput) (*types.RevokeDeviceEnrollmentTokenPayload, error) {
-	scope, err := r.authorize(ctx, input.EnrollmentTokenID, itam.ActionDeviceEnrollmentTokenRevoke)
-	if err != nil {
-		return nil, err
-	}
-
-	token, err := r.itam.RevokeEnrollmentToken(ctx, scope, input.EnrollmentTokenID)
-	if err != nil {
-		r.logger.ErrorCtx(ctx, "cannot revoke device enrollment token", log.Error(err))
-		return nil, gqlutils.Internal(ctx)
-	}
-
-	return &types.RevokeDeviceEnrollmentTokenPayload{
-		EnrollmentToken: types.NewDeviceEnrollmentToken(token),
+	return &types.CreateDevicePayload{
+		Device: types.NewDevice(result.Device),
+		APIKey: result.APIKey,
 	}, nil
 }
 

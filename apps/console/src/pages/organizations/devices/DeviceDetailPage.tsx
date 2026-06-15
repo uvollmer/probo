@@ -27,6 +27,7 @@ import {
   useConfirm,
   useToast,
 } from "@probo/ui";
+import type { ReactNode } from "react";
 import {
   type PreloadedQuery,
   useMutation,
@@ -43,6 +44,7 @@ export const deviceDetailPageQuery = graphql`
       __typename
       ... on Device {
         id
+        state
         hostname
         hardwareUuid
         serialNumber
@@ -69,6 +71,7 @@ const revokeDeviceMutation = graphql`
       device {
         id
         revokedAt
+        state
       }
     }
   }
@@ -78,23 +81,31 @@ interface DeviceDetailPageProps {
   queryRef: PreloadedQuery<DeviceDetailPageQuery>;
 }
 
+function displayValue(
+  value: string | null | undefined,
+  pendingLabel: string,
+) {
+  return value && value.length > 0 ? value : pendingLabel;
+}
+
 export function DeviceDetailPage({ queryRef }: DeviceDetailPageProps) {
   const { __ } = useTranslate();
   const { toast } = useToast();
   const confirm = useConfirm();
+  const pendingLabel = __("(pending)");
 
   const { device } = usePreloadedQuery(deviceDetailPageQuery, queryRef);
   if (device.__typename !== "Device") {
     throw new Error("invalid type for device node");
   }
 
-  usePageTitle(device.hostname);
+  usePageTitle(displayValue(device.hostname, pendingLabel));
 
   const [revokeDevice, isRevoking] = useMutation<DeviceDetailPageRevokeMutation>(
     revokeDeviceMutation,
   );
 
-  const isRevoked = Boolean(device.revokedAt);
+  const isRevoked = device.state === "REVOKED";
 
   const handleRevoke = () => {
     confirm(
@@ -136,7 +147,7 @@ export function DeviceDetailPage({ queryRef }: DeviceDetailPageProps) {
           __(
             "Revoke device \"%s\"? The agent on the device will stop reporting and must be re-enrolled.",
           ),
-          device.hostname,
+          displayValue(device.hostname, pendingLabel),
         ),
         variant: "danger",
         label: __("Revoke"),
@@ -146,7 +157,10 @@ export function DeviceDetailPage({ queryRef }: DeviceDetailPageProps) {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={device.hostname} description={device.platform}>
+      <PageHeader
+        title={displayValue(device.hostname, pendingLabel)}
+        description={displayValue(device.platform, pendingLabel)}
+      >
         {!isRevoked && (
           <Button variant="danger" onClick={handleRevoke} disabled={isRevoking}>
             {__("Revoke")}
@@ -155,17 +169,37 @@ export function DeviceDetailPage({ queryRef }: DeviceDetailPageProps) {
       </PageHeader>
 
       <section className="grid grid-cols-2 gap-4 max-w-2xl">
-        <DetailRow label={__("Hardware UUID")} value={device.hardwareUuid} />
+        <DetailRow
+          label={__("State")}
+          value={
+            <Badge variant={stateVariant(device.state)}>{device.state}</Badge>
+          }
+        />
+        <DetailRow
+          label={__("Hardware UUID")}
+          value={displayValue(device.hardwareUuid, pendingLabel)}
+        />
         <DetailRow
           label={__("Serial number")}
-          value={device.serialNumber ?? ""}
+          value={displayValue(device.serialNumber, pendingLabel)}
         />
-        <DetailRow label={__("Platform")} value={device.platform} />
-        <DetailRow label={__("OS version")} value={device.osVersion} />
-        <DetailRow label={__("Agent version")} value={device.agentVersion} />
+        <DetailRow
+          label={__("Platform")}
+          value={displayValue(device.platform, pendingLabel)}
+        />
+        <DetailRow
+          label={__("OS version")}
+          value={displayValue(device.osVersion, pendingLabel)}
+        />
+        <DetailRow
+          label={__("Agent version")}
+          value={displayValue(device.agentVersion, pendingLabel)}
+        />
         <DetailRow
           label={__("Enrolled at")}
-          value={formatDate(device.enrolledAt)}
+          value={
+            device.enrolledAt ? formatDate(device.enrolledAt) : pendingLabel
+          }
         />
         <DetailRow
           label={__("Last seen")}
@@ -206,13 +240,32 @@ export function DeviceDetailPage({ queryRef }: DeviceDetailPageProps) {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
   return (
     <div className="flex flex-col">
       <span className="text-tertiary text-xs uppercase">{label}</span>
       <span className="text-sm">{value || "—"}</span>
     </div>
   );
+}
+
+function stateVariant(
+  state: string,
+): "success" | "danger" | "warning" | "info" {
+  switch (state) {
+    case "ACTIVE":
+      return "success";
+    case "REVOKED":
+      return "danger";
+    default:
+      return "warning";
+  }
 }
 
 function statusVariant(
