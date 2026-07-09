@@ -754,6 +754,28 @@ func (s *OrganizationService) CreateOrganization(
 				return fmt.Errorf("cannot insert mailing list: %w", err)
 			}
 
+			defaultDomainHostname := trustCenter.Slug + "." + s.trustCenterBaseDomain
+
+			defaultDomain := coredata.NewCustomDomain(
+				tenantID,
+				organization.ID,
+				defaultDomainHostname,
+				true,
+			)
+
+			certificate, err := s.certManager.EnsureCertificate(ctx, tx, scope, defaultDomainHostname)
+			if err != nil {
+				return fmt.Errorf("cannot ensure certificate for default custom domain: %w", err)
+			}
+
+			defaultDomain.CertificateID = &certificate.ID
+
+			if err := defaultDomain.Insert(ctx, tx, scope); err != nil {
+				return fmt.Errorf("cannot insert default custom domain: %w", err)
+			}
+
+			trustCenter.DefaultDomainID = &defaultDomain.ID
+
 			if err := trustCenter.Insert(ctx, tx, scope); err != nil {
 				return fmt.Errorf("cannot insert trust center: %w", err)
 			}

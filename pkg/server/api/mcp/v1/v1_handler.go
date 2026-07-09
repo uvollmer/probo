@@ -23,6 +23,7 @@ import (
 	mcpgenmcp "go.probo.inc/mcpgen/mcp"
 	"go.probo.inc/probo/pkg/accessreview"
 	"go.probo.inc/probo/pkg/baseurl"
+	"go.probo.inc/probo/pkg/complianceportal/management"
 	"go.probo.inc/probo/pkg/cookiebanner"
 	"go.probo.inc/probo/pkg/filemanager"
 	"go.probo.inc/probo/pkg/iam"
@@ -38,6 +39,7 @@ import (
 func NewMux(
 	logger *log.Logger,
 	proboSvc *probo.Service,
+	managementSvc *management.Service,
 	resourceAliasSvc *resourcealias.Service,
 	thirdPartySvc *thirdparty.Service,
 	iamSvc *iam.Service,
@@ -54,6 +56,7 @@ func NewMux(
 
 	resolver := &Resolver{
 		proboSvc:       proboSvc,
+		management:     managementSvc,
 		resourceAlias:  resourceAliasSvc,
 		thirdPartySvc:  thirdPartySvc,
 		iamSvc:         iamSvc,

@@ -28,7 +28,6 @@ import { graphql } from "relay-runtime";
 
 import type { DeleteCompliancePageDomainDialogMutation } from "#/__generated__/core/DeleteCompliancePageDomainDialogMutation.graphql";
 import { useMutationWithToasts } from "#/hooks/useMutationWithToasts";
-import { useOrganizationId } from "#/hooks/useOrganizationId";
 
 const deleteCustomDomainMutation = graphql`
   mutation DeleteCompliancePageDomainDialogMutation($input: DeleteCustomDomainInput!) {
@@ -40,12 +39,13 @@ const deleteCustomDomainMutation = graphql`
 
 type DeleteCompliancePageDomainDialogProps = PropsWithChildren<{
   domain: string;
+  customDomainId: string;
+  compliancePageId: string;
 }>;
 
 export function DeleteCompliancePageDomainDialog(props: DeleteCompliancePageDomainDialogProps) {
-  const { children, domain } = props;
+  const { children, domain, customDomainId } = props;
 
-  const organizationId = useOrganizationId();
   const { __ } = useTranslate();
   const dialogRef = useDialogRef();
   const [inputValue, setInputValue] = useState("");
@@ -62,17 +62,13 @@ export function DeleteCompliancePageDomainDialog(props: DeleteCompliancePageDoma
   const handleDeleteDomain = async () => {
     return deleteCustomDomain({
       variables: {
-        input: { organizationId },
+        input: { customDomainId },
       },
       onCompleted: () => {
         dialogRef.current?.close();
       },
       updater: (store) => {
-        // Update the cache by setting customDomain to null
-        const organizationRecord = store.get(organizationId);
-        if (organizationRecord) {
-          organizationRecord.setValue(null, "customDomain");
-        }
+        store.delete(customDomainId);
       },
     });
   };

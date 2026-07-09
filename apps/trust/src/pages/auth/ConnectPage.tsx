@@ -23,7 +23,6 @@ import { z } from "zod";
 
 import { useFormWithSchema } from "#/hooks/useFormWithSchema";
 import { useSafeContinueUrl } from "#/hooks/useSafeContinueUrl";
-import { getPathPrefix } from "#/utils/pathPrefix";
 
 import type { ConnectPageMutation, SendMagicLinkInput } from "./__generated__/ConnectPageMutation.graphql";
 import type { ConnectPageQuery } from "./__generated__/ConnectPageQuery.graphql";
@@ -125,7 +124,7 @@ export function ConnectPage(props: {
         if (errors) {
           for (const err of errors) {
             if (err.extensions?.code === "ALREADY_AUTHENTICATED") {
-              window.location.href = getPathPrefix() || "/";
+              window.location.href = "/";
               return;
             }
           }

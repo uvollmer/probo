@@ -27,6 +27,7 @@ import (
 	"go.gearno.de/kit/pg"
 	"go.opentelemetry.io/otel/trace"
 	"go.probo.inc/probo/pkg/baseurl"
+	"go.probo.inc/probo/pkg/certmanager"
 	"go.probo.inc/probo/pkg/connector"
 	"go.probo.inc/probo/pkg/coredata"
 	"go.probo.inc/probo/pkg/crypto/cipher"
@@ -55,6 +56,9 @@ type (
 		magicLinkTokenValidity     time.Duration
 		sessionDuration            time.Duration
 		bucket                     string
+		encryptionKey              cipher.EncryptionKey
+		trustCenterBaseDomain      string
+		certManager                *certmanager.Service
 		certificate                *x509.Certificate
 		privateKey                 *rsa.PrivateKey
 		logger                     *log.Logger
@@ -84,6 +88,8 @@ type (
 		Bucket                         string
 		TokenSecret                    string
 		BaseURL                        *baseurl.BaseURL
+		TrustCenterBaseDomain          string
+		CertManager                    *certmanager.Service
 		EncryptionKey                  cipher.EncryptionKey
 		Certificate                    *x509.Certificate
 		PrivateKey                     *rsa.PrivateKey
@@ -152,6 +158,9 @@ func NewService(
 		magicLinkTokenValidity:     cfg.MagicLinkTokenValidity,
 		sessionDuration:            cfg.SessionDuration,
 		bucket:                     cfg.Bucket,
+		encryptionKey:              cfg.EncryptionKey,
+		trustCenterBaseDomain:      cfg.TrustCenterBaseDomain,
+		certManager:                cfg.CertManager,
 		certificate:                cfg.Certificate,
 		privateKey:                 cfg.PrivateKey,
 		logger:                     cfg.Logger,

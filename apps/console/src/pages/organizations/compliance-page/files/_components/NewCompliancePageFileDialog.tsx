@@ -19,7 +19,7 @@ import {
   acceptPresentation,
   acceptSpreadsheet,
   acceptText,
-  getTrustCenterVisibilityOptions,
+  getCompliancePageVisibilityOptions,
 } from "@probo/helpers";
 import { useTranslate } from "@probo/i18n";
 import { Badge, Button, Dialog, DialogContent, DialogFooter, type DialogRef, Dropzone, Field, Option, Spinner } from "@probo/ui";
@@ -70,10 +70,10 @@ export function NewCompliancePageFileDialog(props: {
   const createSchema = z.object({
     name: z.string().min(1, __("Name is required")),
     category: z.string().min(1, __("Category is required")),
-    trustCenterVisibility: z.enum(["NONE", "PRIVATE", "PUBLIC"]),
+    compliancePageVisibility: z.enum(["NONE", "PRIVATE", "PUBLIC"]),
   });
   const createForm = useFormWithSchema(createSchema, {
-    defaultValues: { name: "", category: "", trustCenterVisibility: "NONE" },
+    defaultValues: { name: "", category: "", compliancePageVisibility: "NONE" },
   });
 
   const handleFileUpload = useCallback(
@@ -116,7 +116,7 @@ export function NewCompliancePageFileDialog(props: {
           organizationId,
           name: data.name,
           category: data.category,
-          trustCenterVisibility: data.trustCenterVisibility,
+          trustCenterVisibility: data.compliancePageVisibility,
           file: null,
         },
         connections: connectionId ? [connectionId] : [],
@@ -170,15 +170,15 @@ export function NewCompliancePageFileDialog(props: {
           <Field
             label={__("Visibility")}
             type="select"
-            value={createForm.watch("trustCenterVisibility")}
+            value={createForm.watch("compliancePageVisibility")}
             onValueChange={value =>
               createForm.setValue(
-                "trustCenterVisibility",
+                "compliancePageVisibility",
                 value as "NONE" | "PRIVATE" | "PUBLIC",
               )}
-            error={createForm.formState.errors.trustCenterVisibility?.message}
+            error={createForm.formState.errors.compliancePageVisibility?.message}
           >
-            {getTrustCenterVisibilityOptions(__).map(option => (
+            {getCompliancePageVisibilityOptions(__).map(option => (
               <Option key={option.value} value={option.value}>
                 <div className="flex items-center justify-between w-full">
                   <Badge variant={option.variant}>{option.label}</Badge>

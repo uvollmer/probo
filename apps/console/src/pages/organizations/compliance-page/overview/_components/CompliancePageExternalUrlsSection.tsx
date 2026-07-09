@@ -41,22 +41,22 @@ import { z } from "zod";
 
 import type { CompliancePageExternalUrlsSection_createMutation } from "#/__generated__/core/CompliancePageExternalUrlsSection_createMutation.graphql";
 import type { CompliancePageExternalUrlsSection_deleteMutation } from "#/__generated__/core/CompliancePageExternalUrlsSection_deleteMutation.graphql";
-import type { CompliancePageExternalUrlsSection_trustCenterFragment$key } from "#/__generated__/core/CompliancePageExternalUrlsSection_trustCenterFragment.graphql";
-import type { CompliancePageExternalUrlsSection_trustCenterRefetchQuery } from "#/__generated__/core/CompliancePageExternalUrlsSection_trustCenterRefetchQuery.graphql";
+import type { CompliancePageExternalUrlsSection_compliancePageFragment$key } from "#/__generated__/core/CompliancePageExternalUrlsSection_compliancePageFragment.graphql";
+import type { CompliancePageExternalUrlsSection_compliancePageRefetchQuery } from "#/__generated__/core/CompliancePageExternalUrlsSection_compliancePageRefetchQuery.graphql";
 import type { CompliancePageExternalUrlsSection_updateMutation } from "#/__generated__/core/CompliancePageExternalUrlsSection_updateMutation.graphql";
 import { useFormWithSchema } from "#/hooks/useFormWithSchema";
 import { useMutationWithToasts } from "#/hooks/useMutationWithToasts";
 
-const trustCenterFragment = graphql`
-  fragment CompliancePageExternalUrlsSection_trustCenterFragment on TrustCenter
-  @refetchable(queryName: "CompliancePageExternalUrlsSection_trustCenterRefetchQuery")
+const compliancePageFragment = graphql`
+  fragment CompliancePageExternalUrlsSection_compliancePageFragment on TrustCenter
+  @refetchable(queryName: "CompliancePageExternalUrlsSection_compliancePageRefetchQuery")
   @argumentDefinitions(
     first: { type: Int, defaultValue: 100 }
     after: { type: CursorKey, defaultValue: null }
     order: { type: ComplianceExternalURLOrder, defaultValue: { field: RANK, direction: ASC } }
   ) {
     id
-    canUpdate: permission(action: "core:trust-center:update")
+    canUpdate: permission(action: "compliance-portal:portal:update")
     externalUrls(first: $first, after: $after, orderBy: $order)
     @connection(key: "CompliancePageExternalUrlsSection_externalUrls", filters: ["orderBy"]) {
       __id
@@ -118,7 +118,7 @@ type UrlFormData = z.infer<typeof urlSchema>;
 type UrlNode = { id: string; name: string; url: string; rank: number };
 
 type ExternalUrlDialogRef = {
-  openCreate: (trustCenterId: string, connectionId: string) => void;
+  openCreate: (compliancePageId: string, connectionId: string) => void;
   openEdit: (node: UrlNode) => void;
 };
 
@@ -127,7 +127,7 @@ const ExternalUrlDialog = forwardRef<ExternalUrlDialogRef>(
     const { __ } = useTranslate();
     const dialogRef = useDialogRef();
     const [mode, setMode] = useState<"create" | "edit">("create");
-    const [trustCenterId, setTrustCenterId] = useState("");
+    const [compliancePageId, setCompliancePageId] = useState("");
     const [connectionId, setConnectionId] = useState("");
     const [editNode, setEditNode] = useState<UrlNode | null>(null);
 
@@ -160,9 +160,9 @@ const ExternalUrlDialog = forwardRef<ExternalUrlDialogRef>(
     };
 
     useImperativeHandle(ref, () => ({
-      openCreate: (tId, cId) => {
+      openCreate: (pageId, cId) => {
         setMode("create");
-        setTrustCenterId(tId);
+        setCompliancePageId(pageId);
         setConnectionId(cId);
         setEditNode(null);
         setNameAutoDetected(false);
@@ -182,7 +182,7 @@ const ExternalUrlDialog = forwardRef<ExternalUrlDialogRef>(
       if (mode === "create") {
         await create({
           variables: {
-            input: { trustCenterId, name: data.name, url: data.url },
+            input: { trustCenterId: compliancePageId, name: data.name, url: data.url },
           },
           updater: (store) => {
             const payload = store.getRootField("createComplianceExternalURL");
@@ -328,16 +328,16 @@ function ExternalUrlRow(props: {
 }
 
 export function CompliancePageExternalUrlsSection(props: {
-  trustCenterRef: CompliancePageExternalUrlsSection_trustCenterFragment$key;
+  compliancePageRef: CompliancePageExternalUrlsSection_compliancePageFragment$key;
 }) {
   const { __ } = useTranslate();
   const [, startTransition] = useTransition();
   const dialogRef = useRef<ExternalUrlDialogRef>(null);
 
-  const [trustCenter, refetch] = useRefetchableFragment<
-    CompliancePageExternalUrlsSection_trustCenterRefetchQuery,
-    CompliancePageExternalUrlsSection_trustCenterFragment$key
-  >(trustCenterFragment, props.trustCenterRef);
+  const [compliancePage, refetch] = useRefetchableFragment<
+    CompliancePageExternalUrlsSection_compliancePageRefetchQuery,
+    CompliancePageExternalUrlsSection_compliancePageFragment$key
+  >(compliancePageFragment, props.compliancePageRef);
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -347,13 +347,13 @@ export function CompliancePageExternalUrlsSection(props: {
     { successMessage: __("Order updated."), errorMessage: __("Failed to update order.") },
   );
 
-  const edges = trustCenter.externalUrls.edges;
-  const canEdit = trustCenter.canUpdate;
+  const edges = compliancePage.externalUrls.edges;
+  const canEdit = compliancePage.canUpdate;
 
-  const connectionId = trustCenter.externalUrls.__id;
+  const connectionId = compliancePage.externalUrls.__id;
 
   const handleCreate = () => {
-    dialogRef.current?.openCreate(trustCenter.id, connectionId);
+    dialogRef.current?.openCreate(compliancePage.id, connectionId);
   };
 
   const handleEdit = (node: UrlNode) => {

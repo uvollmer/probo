@@ -39,7 +39,6 @@ type (
 		WebsiteURL           *string      `db:"website_url"`
 		Email                *string      `db:"email"`
 		HeadquarterAddress   *string      `db:"headquarter_address"`
-		CustomDomainID       *gid.GID     `db:"custom_domain_id"`
 		CreatedAt            time.Time    `db:"created_at"`
 		UpdatedAt            time.Time    `db:"updated_at"`
 	}
@@ -115,7 +114,6 @@ SELECT
     website_url,
     email,
     headquarter_address,
-    custom_domain_id,
     created_at,
     updated_at
 FROM
@@ -167,7 +165,6 @@ SELECT
     website_url,
     email,
     headquarter_address,
-    custom_domain_id,
     created_at,
     updated_at
 FROM
@@ -227,7 +224,6 @@ SELECT
     website_url,
     email,
     headquarter_address,
-    custom_domain_id,
     created_at,
     updated_at
 FROM
@@ -288,7 +284,6 @@ SELECT
 	website_url,
 	email,
 	headquarter_address,
-	custom_domain_id,
 	created_at,
 	updated_at
 FROM
@@ -336,10 +331,9 @@ INSERT INTO organizations (
     website_url,
     email,
     headquarter_address,
-    custom_domain_id,
     created_at,
     updated_at
-) VALUES (@tenant_id, @id, @name, @logo_file_id, @horizontal_logo_file_id, @description, @website_url, @email, @headquarter_address, @custom_domain_id, @created_at, @updated_at)
+) VALUES (@tenant_id, @id, @name, @logo_file_id, @horizontal_logo_file_id, @description, @website_url, @email, @headquarter_address, @created_at, @updated_at)
 `
 
 	args := pgx.StrictNamedArgs{
@@ -352,7 +346,6 @@ INSERT INTO organizations (
 		"website_url":             o.WebsiteURL,
 		"email":                   o.Email,
 		"headquarter_address":     o.HeadquarterAddress,
-		"custom_domain_id":        o.CustomDomainID,
 		"created_at":              o.CreatedAt,
 		"updated_at":              o.UpdatedAt,
 	}
@@ -380,7 +373,6 @@ SET
     website_url = @website_url,
     email = @email,
     headquarter_address = @headquarter_address,
-    custom_domain_id = @custom_domain_id,
     updated_at = @updated_at
 WHERE
     %s
@@ -398,7 +390,6 @@ WHERE
 		"website_url":             o.WebsiteURL,
 		"email":                   o.Email,
 		"headquarter_address":     o.HeadquarterAddress,
-		"custom_domain_id":        o.CustomDomainID,
 		"updated_at":              o.UpdatedAt,
 	}
 
@@ -428,58 +419,6 @@ WHERE id = @id
 	if err != nil {
 		return fmt.Errorf("cannot delete organization: %w", err)
 	}
-
-	return nil
-}
-
-func (o *Organization) LoadByCustomDomainID(
-	ctx context.Context,
-	conn pg.Querier,
-	scope Scoper,
-	customDomainID gid.GID,
-) error {
-	q := `
-SELECT
-    tenant_id,
-    id,
-    name,
-    logo_file_id,
-    horizontal_logo_file_id,
-    description,
-    website_url,
-    email,
-    headquarter_address,
-    custom_domain_id,
-    created_at,
-    updated_at
-FROM
-    organizations
-WHERE
-    %s
-    AND custom_domain_id = @custom_domain_id
-LIMIT 1
-`
-
-	q = fmt.Sprintf(q, scope.SQLFragment())
-
-	args := pgx.StrictNamedArgs{"custom_domain_id": customDomainID}
-	maps.Copy(args, scope.SQLArguments())
-
-	rows, err := conn.Query(ctx, q, args)
-	if err != nil {
-		return fmt.Errorf("cannot query organization by custom domain: %w", err)
-	}
-
-	organization, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[Organization])
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrResourceNotFound
-		}
-
-		return fmt.Errorf("cannot collect organization: %w", err)
-	}
-
-	*o = organization
 
 	return nil
 }

@@ -38,7 +38,7 @@ const fragment = graphql`
     ndaSignature {
       status
     }
-    canUpdate: permission(action: "core:trust-center-access:update")
+    canUpdate: permission(action: "compliance-portal:portal-access:update")
   }
 `;
 

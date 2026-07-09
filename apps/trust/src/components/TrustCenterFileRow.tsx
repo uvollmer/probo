@@ -26,8 +26,6 @@ import { useFragment, useMutation } from "react-relay";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { graphql } from "relay-runtime";
 
-import { getPathPrefix } from "#/utils/pathPrefix";
-
 import type { TrustCenterFileRow_requestAccessMutation } from "./__generated__/TrustCenterFileRow_requestAccessMutation.graphql";
 import type { TrustCenterFileRowFragment$key } from "./__generated__/TrustCenterFileRowFragment.graphql";
 
@@ -101,11 +99,10 @@ export function TrustCenterFileRow(props: {
       },
       onError: (error) => {
         if (error instanceof UnAuthenticatedError) {
-          const pathPrefix = getPathPrefix();
           searchParams.set("request-file-id", file.id);
           const urlSearchParams = new URLSearchParams([[
             "continue",
-            window.location.origin + pathPrefix + location.pathname + "?" + searchParams.toString(),
+            window.location.origin + location.pathname + "?" + searchParams.toString(),
           ]]);
           void navigate(`/connect?${urlSearchParams.toString()}`);
 

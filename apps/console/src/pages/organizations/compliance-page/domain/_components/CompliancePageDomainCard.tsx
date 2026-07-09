@@ -28,16 +28,21 @@ import { DeleteCompliancePageDomainDialog } from "./DeleteCompliancePageDomainDi
 
 const fragment = graphql`
   fragment CompliancePageDomainCardFragment on CustomDomain {
+    id
     domain
+    managed
     sslStatus
     provisioningError
-    canDelete: permission(action: "core:custom-domain:delete")
+    canDelete: permission(action: "compliance-portal:custom-domain:delete")
     ...CompliancePageDomainDialogFragment
   }
 `;
 
-export function CompliancePageDomainCard(props: { fKey: CompliancePageDomainCardFragment$key }) {
-  const { fKey } = props;
+export function CompliancePageDomainCard(props: {
+  fKey: CompliancePageDomainCardFragment$key;
+  compliancePageId: string;
+}) {
+  const { fKey, compliancePageId } = props;
 
   const { __ } = useTranslate();
 
@@ -49,7 +54,12 @@ export function CompliancePageDomainCard(props: { fKey: CompliancePageDomainCard
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div>
-              <div className="font-medium mb-1">{domain.domain}</div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-medium">{domain.domain}</span>
+                {domain.managed && (
+                  <Badge variant="neutral">{__("Managed")}</Badge>
+                )}
+              </div>
               <div className="text-sm text-txt-secondary">
                 {domain.sslStatus === "ACTIVE"
                   ? __("Verified")
@@ -71,7 +81,11 @@ export function CompliancePageDomainCard(props: { fKey: CompliancePageDomainCard
             </CompliancePageDomainDialog>
 
             {domain.canDelete && (
-              <DeleteCompliancePageDomainDialog domain={domain.domain}>
+              <DeleteCompliancePageDomainDialog
+                domain={domain.domain}
+                customDomainId={domain.id}
+                compliancePageId={compliancePageId}
+              >
                 <Button variant="danger">{__("Delete")}</Button>
               </DeleteCompliancePageDomainDialog>
             )}

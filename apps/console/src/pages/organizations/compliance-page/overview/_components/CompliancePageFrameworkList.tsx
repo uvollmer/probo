@@ -34,7 +34,7 @@ const compliancePageFragment = graphql`
     order: { type: ComplianceFrameworkOrder, defaultValue: { field: RANK, direction: ASC } }
   ) {
     id
-    canUpdate: permission(action: "core:trust-center:update")
+    canUpdate: permission(action: "compliance-portal:portal:update")
     complianceFrameworks(first: $first, after: $after, orderBy: $order)
     @connection(key: "CompliancePageFrameworkList_complianceFrameworks", filters: ["orderBy"]) {
       edges {
@@ -295,11 +295,11 @@ export function CompliancePageFrameworkList(props: {
         },
       },
       updater: (store) => {
-        const trustCenterRecord = store.get(compliancePage.id);
-        if (!trustCenterRecord) return;
+        const compliancePageRecord = store.get(compliancePage.id);
+        if (!compliancePageRecord) return;
 
         const connection = ConnectionHandler.getConnection(
-          trustCenterRecord,
+          compliancePageRecord,
           "CompliancePageFrameworkList_complianceFrameworks",
           { orderBy: { field: "RANK", direction: "ASC" } },
         );

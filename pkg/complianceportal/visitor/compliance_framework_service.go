@@ -1,0 +1,51 @@
+// Copyright (c) 2026 Probo Inc <hello@probo.com>.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+// REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+// AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+// INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+// LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+// OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+// PERFORMANCE OF THIS SOFTWARE.
+
+package visitor
+
+import (
+	"context"
+	"fmt"
+
+	"go.gearno.de/kit/pg"
+	"go.probo.inc/probo/pkg/coredata"
+	"go.probo.inc/probo/pkg/gid"
+	"go.probo.inc/probo/pkg/page"
+)
+
+func (s *Service) ListComplianceFrameworksByPortalID(
+	ctx context.Context,
+	scope coredata.Scoper,
+	trustCenterID gid.GID,
+	cursor *page.Cursor[coredata.ComplianceFrameworkOrderField],
+) (*page.Page[*coredata.ComplianceFramework, coredata.ComplianceFrameworkOrderField], error) {
+	var complianceFrameworks coredata.ComplianceFrameworks
+
+	err := s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			err := complianceFrameworks.LoadByTrustCenterID(ctx, conn, scope, trustCenterID, cursor)
+			if err != nil {
+				return fmt.Errorf("cannot load compliance frameworks: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return page.NewPage(complianceFrameworks, cursor), nil
+}

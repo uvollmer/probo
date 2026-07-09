@@ -27,12 +27,10 @@ export const compliancePageLayoutQuery = graphql`
     organization: node(id: $organizationId) {
       __typename
       ... on Organization {
-        customDomain {
-          domain
-        }
         compliancePage: trustCenter {
           id
           active
+          publicUrl
         }
       }
     }
@@ -52,11 +50,7 @@ export function CompliancePageLayout(props: { queryRef: PreloadedQuery<Complianc
     throw new Error("invalid type for node");
   }
 
-  const compliancePageUrl = organization.compliancePage?.id
-    ? organization.customDomain?.domain
-      ? `https://${organization.customDomain.domain}`
-      : `${window.location.origin}/trust/${organization.compliancePage.id}`
-    : null;
+  const compliancePageUrl = organization.compliancePage?.publicUrl || null;
 
   return (
     <div className="space-y-6">

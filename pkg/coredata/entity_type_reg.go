@@ -127,6 +127,7 @@ const (
 	RiskAssessmentBoundaryEntityType                 uint16 = 101
 	AccessReviewCampaignSourceEntityType             uint16 = 102
 	AccessReviewCampaignSourceFetchAttemptEntityType uint16 = 103
+	CertificateEntityType                            uint16 = 104
 )
 
 func NewEntityFromID(id gid.GID) (any, bool) {
@@ -321,6 +322,8 @@ func NewEntityFromID(id gid.GID) (any, bool) {
 		return &AccessReviewCampaignSource{ID: id}, true
 	case AccessReviewCampaignSourceFetchAttemptEntityType:
 		return &AccessReviewCampaignSourceFetchAttempt{ID: id}, true
+	case CertificateEntityType:
+		return &Certificate{ID: id}, true
 	default:
 		return nil, false
 	}

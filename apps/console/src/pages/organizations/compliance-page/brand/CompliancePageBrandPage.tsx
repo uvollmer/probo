@@ -48,16 +48,16 @@ export const compliancePageBrandPageQuery = graphql`
           darkLogo {
             downloadUrl
           }
-          canUpdate: permission(action: "core:trust-center:update")
+          canUpdate: permission(action: "compliance-portal:portal:update")
           ...CompliancePageFrameworkList_compliancePageFragment
-          ...CompliancePageExternalUrlsSection_trustCenterFragment
+          ...CompliancePageExternalUrlsSection_compliancePageFragment
         }
       }
     }
   }
 `;
 
-const updateTrustCenterBrandMutation = graphql`
+const updateCompliancePageBrandMutation = graphql`
   mutation CompliancePageBrandPage_updateMutation($input: UpdateTrustCenterBrandInput!) {
     updateTrustCenterBrand(input: $input) {
       trustCenter {
@@ -84,7 +84,7 @@ export function CompliancePageBrandPage(props: { queryRef: PreloadedQuery<Compli
     throw new Error("invalid type for node");
   }
 
-  const trustCenterId = organization.compliancePage.id;
+  const compliancePageId = organization.compliancePage.id;
   const logoDownloadUrl = organization.compliancePage.logo?.downloadUrl;
   const darkLogoDownloadUrl = organization.compliancePage.darkLogo?.downloadUrl;
 
@@ -92,7 +92,7 @@ export function CompliancePageBrandPage(props: { queryRef: PreloadedQuery<Compli
   const [darkLogoPreview, setDarkLogoPreview] = useState<string | null>(null);
 
   const [updateBrand, isUpdating] = useMutationWithToasts<CompliancePageBrandPage_updateMutation>(
-    updateTrustCenterBrandMutation,
+    updateCompliancePageBrandMutation,
     {
       successMessage: __("Compliance page branding updated successfully"),
       errorMessage: __("Failed to update compliance page branding"),
@@ -126,7 +126,7 @@ export function CompliancePageBrandPage(props: { queryRef: PreloadedQuery<Compli
     void updateBrand({
       variables: {
         input: {
-          trustCenterId,
+          trustCenterId: compliancePageId,
           logoFile: null,
         },
       },
@@ -157,7 +157,7 @@ export function CompliancePageBrandPage(props: { queryRef: PreloadedQuery<Compli
     void updateBrand({
       variables: {
         input: {
-          trustCenterId,
+          trustCenterId: compliancePageId,
           darkLogoFile: null,
         },
       },
@@ -179,7 +179,7 @@ export function CompliancePageBrandPage(props: { queryRef: PreloadedQuery<Compli
     void updateBrand({
       variables: {
         input: {
-          trustCenterId,
+          trustCenterId: compliancePageId,
           logoFile: null,
         },
       },
@@ -201,7 +201,7 @@ export function CompliancePageBrandPage(props: { queryRef: PreloadedQuery<Compli
     void updateBrand({
       variables: {
         input: {
-          trustCenterId,
+          trustCenterId: compliancePageId,
           darkLogoFile: null,
         },
       },
@@ -218,7 +218,7 @@ export function CompliancePageBrandPage(props: { queryRef: PreloadedQuery<Compli
     await updateBrand({
       variables: {
         input: {
-          trustCenterId,
+          trustCenterId: compliancePageId,
           logoFile: null,
         },
       },
@@ -232,7 +232,7 @@ export function CompliancePageBrandPage(props: { queryRef: PreloadedQuery<Compli
     await updateBrand({
       variables: {
         input: {
-          trustCenterId,
+          trustCenterId: compliancePageId,
           darkLogoFile: null,
         },
       },
@@ -359,7 +359,7 @@ export function CompliancePageBrandPage(props: { queryRef: PreloadedQuery<Compli
         <CompliancePageFrameworkList compliancePageRef={organization.compliancePage} />
       </div>
 
-      <CompliancePageExternalUrlsSection trustCenterRef={organization.compliancePage} />
+      <CompliancePageExternalUrlsSection compliancePageRef={organization.compliancePage} />
     </div>
   );
 }

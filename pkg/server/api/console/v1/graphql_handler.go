@@ -21,6 +21,7 @@ import (
 	"go.probo.inc/probo/pkg/accessreview"
 	"go.probo.inc/probo/pkg/agentrun"
 	"go.probo.inc/probo/pkg/baseurl"
+	"go.probo.inc/probo/pkg/complianceportal/management"
 	"go.probo.inc/probo/pkg/connector"
 	"go.probo.inc/probo/pkg/connector/provider"
 	"go.probo.inc/probo/pkg/cookiebanner"
@@ -43,6 +44,7 @@ func NewGraphQLHandler(
 	proboSvc *probo.Service,
 	resourceAliasSvc *resourcealias.Service,
 	esignSvc *esign.Service,
+	managementSvc *management.Service,
 	accessReviewSvc *accessreview.Service,
 	agentRunSvc *agentrun.Service,
 	mailmanSvc *mailman.Service,
@@ -65,6 +67,7 @@ func NewGraphQLHandler(
 			resourceAlias:     resourceAliasSvc,
 			iam:               iamSvc,
 			esign:             esignSvc,
+			management:        managementSvc,
 			accessReview:      accessReviewSvc,
 			agentRun:          agentRunSvc,
 			mailman:           mailmanSvc,

@@ -18,7 +18,7 @@ import (
 func (r *organizationResolver) Logo(ctx context.Context, obj *types.Organization) (*types.File, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 
-	organization, err := r.trust.Organizations.Get(ctx, scope, obj.ID)
+	organization, err := r.trust.GetOrganization(ctx, scope, obj.ID)
 	if err != nil {
 		return nil, gqlutils.NotFoundf(ctx, "organization %q not found", obj.ID)
 	}

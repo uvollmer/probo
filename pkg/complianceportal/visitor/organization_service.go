@@ -1,0 +1,108 @@
+// Copyright (c) 2025-2026 Probo Inc <hello@probo.com>.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+// REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+// AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+// INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+// LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+// OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+// PERFORMANCE OF THIS SOFTWARE.
+
+package visitor
+
+import (
+	"context"
+	"fmt"
+	"net/url"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"go.gearno.de/kit/pg"
+	"go.probo.inc/probo/pkg/coredata"
+	"go.probo.inc/probo/pkg/gid"
+)
+
+func (s *Service) GetOrganization(
+	ctx context.Context,
+	scope coredata.Scoper,
+	organizationID gid.GID,
+) (*coredata.Organization, error) {
+	organization := &coredata.Organization{}
+
+	err := s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			err := organization.LoadByID(
+				ctx,
+				conn,
+				scope,
+				organizationID,
+			)
+			if err != nil {
+				return fmt.Errorf("cannot load organization: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return organization, nil
+}
+
+func (s *Service) GenerateOrganizationLogoURL(
+	ctx context.Context,
+	scope coredata.Scoper,
+	organizationID gid.GID,
+	expiresIn time.Duration,
+) (*string, error) {
+	organization, err := s.GetOrganization(ctx, scope, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get organization: %w", err)
+	}
+
+	if organization.LogoFileID == nil {
+		return nil, nil
+	}
+
+	file := &coredata.File{}
+
+	err = s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			return file.LoadByID(ctx, conn, scope, *organization.LogoFileID)
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cannot load file: %w", err)
+	}
+
+	presignClient := s3.NewPresignClient(s.s3)
+
+	encodedFilename := url.QueryEscape(file.FileName)
+	contentDisposition := fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s",
+		encodedFilename, encodedFilename)
+
+	presignedReq, err := presignClient.PresignGetObject(
+		ctx,
+		&s3.GetObjectInput{
+			Bucket:                     new(s.bucket),
+			Key:                        new(file.FileKey),
+			ResponseCacheControl:       new("max-age=3600, public"),
+			ResponseContentDisposition: new(contentDisposition),
+		}, func(opts *s3.PresignOptions) {
+			opts.Expires = expiresIn
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cannot presign GetObject request: %w", err)
+	}
+
+	return &presignedReq.URL, nil
+}

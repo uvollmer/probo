@@ -27,9 +27,17 @@ export const compliancePageDomainPageQuery = graphql`
     organization: node(id: $organizationId) {
       __typename
       ... on Organization {
-        canCreateCustomDomain: permission(action: "core:custom-domain:create")
-        customDomain {
-          ...CompliancePageDomainCardFragment
+        canCreateCustomDomain: permission(action: "compliance-portal:custom-domain:create")
+        compliancePage: trustCenter {
+          id
+          defaultDomain {
+            id
+            ...CompliancePageDomainCardFragment
+          }
+          customDomain {
+            id
+            ...CompliancePageDomainCardFragment
+          }
         }
       }
     }
@@ -51,12 +59,34 @@ export function CompliancePageDomainPage(props: {
     throw new Error("invalid type for node");
   }
 
+  const compliancePageId = organization.compliancePage?.id;
+  const defaultDomain = organization.compliancePage?.defaultDomain;
+  const customDomain = organization.compliancePage?.customDomain;
+
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-medium">{__("Custom Domain")}</h2>
-      {organization.customDomain
+      <div>
+        <h2 className="text-base font-medium">{__("Domains")}</h2>
+        <p className="text-sm text-txt-tertiary">
+          {__(
+            "Your compliance page is always available on its default probopage.com subdomain. You can also serve it on one custom domain of your own.",
+          )}
+        </p>
+      </div>
+
+      {defaultDomain && compliancePageId && (
+        <CompliancePageDomainCard
+          fKey={defaultDomain}
+          compliancePageId={compliancePageId}
+        />
+      )}
+
+      {compliancePageId && customDomain
         ? (
-            <CompliancePageDomainCard fKey={organization.customDomain} />
+            <CompliancePageDomainCard
+              fKey={customDomain}
+              compliancePageId={compliancePageId}
+            />
           )
         : (
             <Card padded>
@@ -70,8 +100,8 @@ export function CompliancePageDomainPage(props: {
                   )}
                 </p>
                 <div className="flex justify-center">
-                  {organization.canCreateCustomDomain && (
-                    <NewCompliancePageDomainDialog>
+                  {compliancePageId && organization.canCreateCustomDomain && (
+                    <NewCompliancePageDomainDialog compliancePageId={compliancePageId}>
                       <Button icon={IconPlusLarge}>{__("Add Domain")}</Button>
                     </NewCompliancePageDomainDialog>
                   )}

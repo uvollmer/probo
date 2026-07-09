@@ -19,7 +19,7 @@ import { ConnectionHandler, graphql, type PreloadedQuery, usePreloadedQuery } fr
 
 import type { CompliancePageReferenceListItemFragment$data } from "#/__generated__/core/CompliancePageReferenceListItemFragment.graphql";
 import type { CompliancePageReferencesPageQuery } from "#/__generated__/core/CompliancePageReferencesPageQuery.graphql";
-import { TrustCenterReferenceDialog, type TrustCenterReferenceDialogRef } from "#/components/trustCenter/TrustCenterReferenceDialog";
+import { CompliancePageReferenceDialog, type CompliancePageReferenceDialogRef } from "#/components/compliancePage/CompliancePageReferenceDialog";
 
 import { CompliancePageReferenceList } from "./_components/CompliancePageReferenceList";
 
@@ -30,7 +30,7 @@ export const compliancePageReferencesPageQuery = graphql`
       ... on Organization {
         compliancePage: trustCenter @required(action: THROW) {
           id
-          canCreateReference: permission(action: "core:trust-center-reference:create")
+          canCreateReference: permission(action: "compliance-portal:portal-reference:create")
           ...CompliancePageReferenceListFragment
         }
       }
@@ -42,7 +42,7 @@ export function CompliancePageReferencesPage(props: { queryRef: PreloadedQuery<C
   const { queryRef } = props;
 
   const { __ } = useTranslate();
-  const dialogRef = useRef<TrustCenterReferenceDialogRef>(null);
+  const dialogRef = useRef<CompliancePageReferenceDialogRef>(null);
 
   const { organization } = usePreloadedQuery<CompliancePageReferencesPageQuery>(
     compliancePageReferencesPageQuery,
@@ -88,7 +88,7 @@ export function CompliancePageReferencesPage(props: { queryRef: PreloadedQuery<C
 
           <CompliancePageReferenceList fragmentRef={organization.compliancePage} onEdit={handleEdit} />
 
-          <TrustCenterReferenceDialog ref={dialogRef} />
+          <CompliancePageReferenceDialog ref={dialogRef} />
         </div>
       )}
     </div>

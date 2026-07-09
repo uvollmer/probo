@@ -21,8 +21,6 @@ import { useMutation } from "react-relay";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { graphql } from "relay-runtime";
 
-import { getPathPrefix } from "#/utils/pathPrefix";
-
 import type { VerifyMagicLinkPageMutation } from "./__generated__/VerifyMagicLinkPageMutation.graphql";
 
 const verifyMagicLinkMutation = graphql`
@@ -57,7 +55,7 @@ export default function VerifyMagicLinkPagePageMutation() {
         if (errors) {
           for (const err of errors) {
             if (err.extensions?.code === "ALREADY_AUTHENTICATED") {
-              window.location.href = window.location.origin + getPathPrefix();
+              window.location.href = window.location.origin;
               return;
             }
 
@@ -93,10 +91,10 @@ export default function VerifyMagicLinkPagePageMutation() {
             const continueUrl = new URL(verifyMagicLink.continue, window.location.origin);
             window.location.href = window.location.origin + continueUrl.pathname + continueUrl.search;
           } catch {
-            window.location.href = window.location.origin + getPathPrefix();
+            window.location.href = window.location.origin;
           }
         } else {
-          window.location.href = window.location.origin + getPathPrefix();
+          window.location.href = window.location.origin;
         }
       },
       onError: (err) => {

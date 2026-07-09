@@ -12,7 +12,7 @@
 // OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 // PERFORMANCE OF THIS SOFTWARE.
 
-import { formatDate, getAuditStateLabel, getAuditStateVariant, getTrustCenterVisibilityOptions } from "@probo/helpers";
+import { formatDate, getAuditStateLabel, getAuditStateVariant, getCompliancePageVisibilityOptions } from "@probo/helpers";
 import { useTranslate } from "@probo/i18n";
 import { Badge, Field, Option, Td, Tr } from "@probo/ui";
 import { useCallback } from "react";
@@ -27,7 +27,7 @@ import { useOrganizationId } from "#/hooks/useOrganizationId";
 
 const compliancePageFragment = graphql`
   fragment CompliancePageAuditListItem_compliancePageFragment on TrustCenter {
-    canUpdate: permission(action: "core:trust-center:update")
+    canUpdate: permission(action: "compliance-portal:portal:update")
   }
 `;
 
@@ -40,7 +40,7 @@ const auditFragment = graphql`
     }
     validUntil
     state
-    trustCenterVisibility
+    compliancePageVisibility: trustCenterVisibility
   }
 `;
 
@@ -94,7 +94,7 @@ export function CompliancePageAuditListItem(props: {
     [audit.id, updateAuditVisibility],
   );
 
-  const visibilityOptions = getTrustCenterVisibilityOptions(__);
+  const visibilityOptions = getCompliancePageVisibilityOptions(__);
   const validUntilFormatted = audit.validUntil
     ? formatDate(audit.validUntil)
     : __("No expiry");
@@ -114,7 +114,7 @@ export function CompliancePageAuditListItem(props: {
       <Td noLink width={130} className="pr-0">
         <Field
           type="select"
-          value={audit.trustCenterVisibility}
+          value={audit.compliancePageVisibility}
           onValueChange={value => void handleVisibilityChange(value)}
           disabled={isUpdatingAuditVisibility || !compliancePage.canUpdate}
           className="w-[105px]"

@@ -24,10 +24,10 @@ import (
 
 	"go.gearno.de/kit/httpserver"
 	"go.gearno.de/kit/log"
+	trust "go.probo.inc/probo/pkg/complianceportal/visitor"
 	"go.probo.inc/probo/pkg/coredata"
 	"go.probo.inc/probo/pkg/gid"
 	"go.probo.inc/probo/pkg/slack"
-	"go.probo.inc/probo/pkg/trust"
 )
 
 type (
@@ -241,7 +241,7 @@ func SlackHandler(slackSvc *slack.Service, slackSigningSecret string, logger *lo
 
 		switch statusAction {
 		case StatusAccept:
-			if err := trustSvc.TrustCenterAccesses.GrantByIDs(
+			if err := trustSvc.GrantPortalAccessByIDs(
 				ctx,
 				scope,
 				initialSlackMessage.OrganizationID,
@@ -256,7 +256,7 @@ func SlackHandler(slackSvc *slack.Service, slackSigningSecret string, logger *lo
 				return
 			}
 		case StatusReject:
-			if err := trustSvc.TrustCenterAccesses.RejectOrRevokeByIDs(
+			if err := trustSvc.RejectOrRevokePortalAccessByIDs(
 				ctx,
 				scope,
 				initialSlackMessage.OrganizationID,

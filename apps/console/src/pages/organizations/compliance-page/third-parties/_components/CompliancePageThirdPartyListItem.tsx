@@ -27,7 +27,7 @@ const thirdPartyFragment = graphql`
     id
     category
     name
-    showOnTrustCenter
+    showOnCompliancePage: showOnTrustCenter
     canUpdate: permission(action: "core:thirdParty:update")
   }
 `;
@@ -75,8 +75,8 @@ export function CompliancePageThirdPartyListItem(props: {
         <Badge variant="neutral">{thirdParty.category}</Badge>
       </Td>
       <Td>
-        <Badge variant={thirdParty.showOnTrustCenter ? "success" : "danger"}>
-          {thirdParty.showOnTrustCenter ? __("Visible") : __("None")}
+        <Badge variant={thirdParty.showOnCompliancePage ? "success" : "danger"}>
+          {thirdParty.showOnCompliancePage ? __("Visible") : __("None")}
         </Badge>
       </Td>
       <Td noLink width={100} className="text-end">
@@ -88,14 +88,14 @@ export function CompliancePageThirdPartyListItem(props: {
                 variables: {
                   input: {
                     id: thirdParty.id,
-                    showOnTrustCenter: !thirdParty.showOnTrustCenter,
+                    showOnTrustCenter: !thirdParty.showOnCompliancePage,
                   },
                 },
               })}
-            icon={thirdParty.showOnTrustCenter ? IconCrossLargeX : IconCheckmark1}
+            icon={thirdParty.showOnCompliancePage ? IconCrossLargeX : IconCheckmark1}
             disabled={isUpadtingThirdPartyVisibility}
           >
-            {thirdParty.showOnTrustCenter ? __("Hide") : __("Show")}
+            {thirdParty.showOnCompliancePage ? __("Hide") : __("Show")}
           </Button>
         )}
       </Td>

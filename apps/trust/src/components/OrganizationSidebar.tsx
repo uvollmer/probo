@@ -32,7 +32,6 @@ import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { graphql } from "relay-runtime";
 
 import type { TrustGraphCurrentQuery$data } from "#/queries/__generated__/TrustGraphCurrentQuery.graphql";
-import { getPathPrefix } from "#/utils/pathPrefix";
 
 import type { OrganizationSidebar_requestAllAccessesMutation } from "./__generated__/OrganizationSidebar_requestAllAccessesMutation.graphql";
 import type { OrganizationSidebar_subscribeToMailingListMutation } from "./__generated__/OrganizationSidebar_subscribeToMailingListMutation.graphql";
@@ -126,11 +125,10 @@ export function OrganizationSidebar({
       },
       onError: (error) => {
         if (error instanceof UnAuthenticatedError) {
-          const pathPrefix = getPathPrefix();
           searchParams.set("request-all", "true");
           const urlSearchParams = new URLSearchParams([[
             "continue",
-            window.location.origin + pathPrefix + location.pathname + "?" + searchParams.toString(),
+            window.location.origin + location.pathname + "?" + searchParams.toString(),
           ]]);
           void navigate(`/connect?${urlSearchParams.toString()}`);
 

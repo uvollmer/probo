@@ -28,6 +28,8 @@ import (
 	"go.probo.inc/probo/pkg/accessreview"
 	"go.probo.inc/probo/pkg/agentrun"
 	"go.probo.inc/probo/pkg/baseurl"
+	"go.probo.inc/probo/pkg/complianceportal/management"
+	trust "go.probo.inc/probo/pkg/complianceportal/visitor"
 	"go.probo.inc/probo/pkg/connector"
 	"go.probo.inc/probo/pkg/connector/provider"
 	"go.probo.inc/probo/pkg/cookiebanner"
@@ -50,7 +52,6 @@ import (
 	"go.probo.inc/probo/pkg/server/gqlutils"
 	"go.probo.inc/probo/pkg/slack"
 	"go.probo.inc/probo/pkg/thirdparty"
-	"go.probo.inc/probo/pkg/trust"
 )
 
 type (
@@ -63,6 +64,7 @@ type (
 		IAM               *iam.Service
 		Trust             *trust.Service
 		ESign             *esign.Service
+		CustomDomain      *management.Service
 		AccessReview      *accessreview.Service
 		AgentRun          *agentrun.Service
 		Slack             *slack.Service
@@ -198,6 +200,7 @@ func NewServer(cfg Config) (*Server, error) {
 			cfg.ResourceAlias,
 			cfg.IAM,
 			cfg.ESign,
+			cfg.CustomDomain,
 			cfg.AccessReview,
 			cfg.AgentRun,
 			cfg.Mailman,
@@ -230,6 +233,7 @@ func NewServer(cfg Config) (*Server, error) {
 		mcpHandler: mcp_v1.NewMux(
 			cfg.Logger.Named("mcp.v1"),
 			cfg.Probo,
+			cfg.CustomDomain,
 			cfg.ResourceAlias,
 			cfg.ThirdParty,
 			cfg.IAM,
@@ -257,12 +261,12 @@ func NewServer(cfg Config) (*Server, error) {
 					return true
 				}
 
-				_, err := cfg.Trust.GetByDomainName(ctx, host)
+				_, err := cfg.Trust.GetPortalByDomainName(ctx, host)
 
 				return err == nil
 			},
 			func(ctx context.Context, host string) bool {
-				_, err := cfg.Trust.GetByDomainName(ctx, host)
+				_, err := cfg.Trust.GetPortalByDomainName(ctx, host)
 				return err == nil
 			},
 			cfg.GraphQLLimits,
@@ -308,7 +312,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Mount("/console/v1", http.StripPrefix("/console/v1", s.consoleHandler))
 		r.Mount("/connect/v1", http.StripPrefix("/connect/v1", s.connectHandler))
 		r.Mount("/files/v1", http.StripPrefix("/files/v1", s.filesHandler))
-		r.Mount("/trust/v1", http.StripPrefix("/trust/v1", s.compliancePageHandler))
 		r.Mount("/mcp/v1", http.StripPrefix("/mcp/v1", s.mcpHandler))
 		r.Mount("/slack/v1", http.StripPrefix("/slack/v1", s.slackHandler))
 	})

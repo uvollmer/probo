@@ -46,6 +46,9 @@ import (
 	"go.probo.inc/probo/pkg/awsconfig"
 	"go.probo.inc/probo/pkg/baseurl"
 	"go.probo.inc/probo/pkg/certmanager"
+	"go.probo.inc/probo/pkg/complianceportal"
+	"go.probo.inc/probo/pkg/complianceportal/management"
+	trust "go.probo.inc/probo/pkg/complianceportal/visitor"
 	"go.probo.inc/probo/pkg/connector"
 	"go.probo.inc/probo/pkg/connector/provider"
 	"go.probo.inc/probo/pkg/cookiebanner"
@@ -74,7 +77,6 @@ import (
 	"go.probo.inc/probo/pkg/server/trustedproxy"
 	"go.probo.inc/probo/pkg/slack"
 	"go.probo.inc/probo/pkg/thirdparty"
-	"go.probo.inc/probo/pkg/trust"
 	"go.probo.inc/probo/pkg/webhook"
 	"golang.org/x/sync/errgroup"
 )
@@ -138,8 +140,9 @@ func New() *Implm {
 				},
 			},
 			TrustCenter: TrustCenterConfig{
-				HTTPAddr:  ":80",
-				HTTPSAddr: ":443",
+				HTTPAddr:   ":80",
+				HTTPSAddr:  ":443",
+				BaseDomain: "probopage.com",
 			},
 			AWS: AWSConfig{
 				Region: "us-east-1",
@@ -465,53 +468,10 @@ func (impl *Implm) Run(
 	oauth2ScopeRegistry := oauth2scope.NewRegistry().
 		Register(iam.IAMOAuth2ScopeMappings).
 		Register(probo.OAuth2ScopeMappings).
+		Register(complianceportal.OAuth2ScopeMappings).
 		Register(agentrun.OAuth2ScopeMappings).
 		Register(accessreview.OAuth2ScopeMappings).
 		Register(resourcealias.OAuth2ScopeMappings)
-
-	iamService, err := iam.NewService(
-		ctx,
-		pgClient,
-		fileManagerService,
-		hp,
-		iam.Config{
-			DisableSignup:                  impl.cfg.Auth.DisableSignup,
-			InvitationTokenValidity:        time.Duration(impl.cfg.Auth.InvitationConfirmationTokenValidity) * time.Second,
-			PasswordResetTokenValidity:     time.Duration(impl.cfg.Auth.PasswordResetTokenValidity) * time.Second,
-			MagicLinkTokenValidity:         time.Duration(impl.cfg.Auth.MagicLinkTokenValidity) * time.Second,
-			SessionDuration:                time.Duration(impl.cfg.Auth.Cookie.Duration) * time.Hour,
-			Bucket:                         impl.cfg.AWS.Bucket,
-			TokenSecret:                    impl.cfg.Auth.Cookie.Secret,
-			BaseURL:                        baseURL,
-			EncryptionKey:                  encryptionKey,
-			Certificate:                    samlCert,
-			PrivateKey:                     samlKey,
-			Logger:                         l.Named("iam"),
-			TracerProvider:                 tp,
-			Registerer:                     r,
-			ConnectorRegistry:              defaultConnectorRegistry,
-			DomainVerificationInterval:     impl.cfg.Auth.SAML.DomainVerificationInterval(),
-			DomainVerificationResolverAddr: impl.cfg.Auth.SAML.DomainVerificationResolverAddr,
-			SCIMBridgeSyncInterval:         time.Duration(impl.cfg.SCIMBridge.SyncInterval) * time.Second,
-			SCIMBridgePollInterval:         time.Duration(impl.cfg.SCIMBridge.PollInterval) * time.Second,
-			GoogleOIDC: oidc.ProviderConfig{
-				ClientID:     impl.cfg.Auth.Google.ClientID,
-				ClientSecret: impl.cfg.Auth.Google.ClientSecret,
-				Enabled:      impl.cfg.Auth.Google.Enabled,
-			},
-			MicrosoftOIDC: oidc.ProviderConfig{
-				ClientID:     impl.cfg.Auth.Microsoft.ClientID,
-				ClientSecret: impl.cfg.Auth.Microsoft.ClientSecret,
-				Enabled:      impl.cfg.Auth.Microsoft.Enabled,
-			},
-			OAuth2ServerSigningKeys: oauth2SigningKeys,
-			OAuth2ServerOptions:     oauth2ServerOptions(impl.cfg.Auth.OAuth2Server),
-			OAuth2ScopeRegistry:     oauth2ScopeRegistry,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("cannot create iam service: %w", err)
-	}
 
 	var accountKey crypto.Signer
 	if impl.cfg.CustomDomains.ACME.AccountKey != "" {
@@ -541,6 +501,76 @@ func (impl *Implm) Run(
 	)
 	if err != nil {
 		return fmt.Errorf("cannot initialize ACME service: %w", err)
+	}
+
+	customDomainRenewalInterval := time.Duration(impl.cfg.CustomDomains.RenewalInterval) * time.Second
+	if customDomainRenewalInterval == 0 {
+		customDomainRenewalInterval = time.Hour
+	}
+
+	customDomainProvisionInterval := time.Duration(impl.cfg.CustomDomains.ProvisionInterval) * time.Second
+	if customDomainProvisionInterval == 0 {
+		customDomainProvisionInterval = 30 * time.Second
+	}
+
+	certManagerService := certmanager.NewService(
+		pgClient,
+		acmeService,
+		encryptionKey,
+		certmanager.Config{
+			CnameTarget:       impl.cfg.CustomDomains.CnameTarget,
+			CAAIssuerDomain:   impl.cfg.CustomDomains.CAAIssuerDomain,
+			ResolverAddr:      impl.cfg.CustomDomains.ResolverAddr,
+			RenewalInterval:   customDomainRenewalInterval,
+			ProvisionInterval: customDomainProvisionInterval,
+		},
+		l.Named("certmanager"),
+	)
+
+	iamService, err := iam.NewService(
+		ctx,
+		pgClient,
+		fileManagerService,
+		hp,
+		iam.Config{
+			DisableSignup:                  impl.cfg.Auth.DisableSignup,
+			InvitationTokenValidity:        time.Duration(impl.cfg.Auth.InvitationConfirmationTokenValidity) * time.Second,
+			PasswordResetTokenValidity:     time.Duration(impl.cfg.Auth.PasswordResetTokenValidity) * time.Second,
+			MagicLinkTokenValidity:         time.Duration(impl.cfg.Auth.MagicLinkTokenValidity) * time.Second,
+			SessionDuration:                time.Duration(impl.cfg.Auth.Cookie.Duration) * time.Hour,
+			Bucket:                         impl.cfg.AWS.Bucket,
+			TokenSecret:                    impl.cfg.Auth.Cookie.Secret,
+			BaseURL:                        baseURL,
+			TrustCenterBaseDomain:          impl.cfg.TrustCenter.BaseDomain,
+			EncryptionKey:                  encryptionKey,
+			Certificate:                    samlCert,
+			PrivateKey:                     samlKey,
+			Logger:                         l.Named("iam"),
+			TracerProvider:                 tp,
+			Registerer:                     r,
+			ConnectorRegistry:              defaultConnectorRegistry,
+			DomainVerificationInterval:     impl.cfg.Auth.SAML.DomainVerificationInterval(),
+			DomainVerificationResolverAddr: impl.cfg.Auth.SAML.DomainVerificationResolverAddr,
+			SCIMBridgeSyncInterval:         time.Duration(impl.cfg.SCIMBridge.SyncInterval) * time.Second,
+			SCIMBridgePollInterval:         time.Duration(impl.cfg.SCIMBridge.PollInterval) * time.Second,
+			GoogleOIDC: oidc.ProviderConfig{
+				ClientID:     impl.cfg.Auth.Google.ClientID,
+				ClientSecret: impl.cfg.Auth.Google.ClientSecret,
+				Enabled:      impl.cfg.Auth.Google.Enabled,
+			},
+			MicrosoftOIDC: oidc.ProviderConfig{
+				ClientID:     impl.cfg.Auth.Microsoft.ClientID,
+				ClientSecret: impl.cfg.Auth.Microsoft.ClientSecret,
+				Enabled:      impl.cfg.Auth.Microsoft.Enabled,
+			},
+			OAuth2ServerSigningKeys: oauth2SigningKeys,
+			OAuth2ServerOptions:     oauth2ServerOptions(impl.cfg.Auth.OAuth2Server),
+			OAuth2ScopeRegistry:     oauth2ScopeRegistry,
+			CertManager:             certManagerService,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("cannot create iam service: %w", err)
 	}
 
 	slackService := slack.NewService(
@@ -579,7 +609,6 @@ func (impl *Implm) Run(
 			MaxTokens:   ref.UnrefOrZero(proboAgentCfg.MaxTokens),
 		},
 		html2pdfConverter,
-		acmeService,
 		fileManagerService,
 		l.Named("probo"),
 		slackService,
@@ -593,6 +622,17 @@ func (impl *Implm) Run(
 	}
 
 	resourceAliasService := resourcealias.NewService(pgClient)
+
+	managementService := management.NewService(
+		pgClient,
+		s3Client,
+		impl.cfg.AWS.Bucket,
+		baseURL.String(),
+		fileManagerService,
+		certManagerService,
+		slackService,
+		l.Named("compliance-portal-management"),
+	)
 
 	trustService := trust.NewService(
 		pgClient,
@@ -622,6 +662,7 @@ func (impl *Implm) Run(
 	iamService.Authorizer.RegisterPolicySet(agentrun.PolicySet())
 	iamService.Authorizer.RegisterPolicySet(accessreview.PolicySet())
 	iamService.Authorizer.RegisterPolicySet(resourcealias.PolicySet())
+	iamService.Authorizer.RegisterPolicySet(complianceportal.PolicySet())
 
 	thirdPartyService := thirdparty.NewService(pgClient, fileManagerService, thirdPartyVetter)
 	riskManagementService := riskmanagement.NewService(pgClient)
@@ -636,6 +677,7 @@ func (impl *Implm) Run(
 			IAM:               iamService,
 			Trust:             trustService,
 			ESign:             esignService,
+			CustomDomain:      managementService,
 			AccessReview:      accessReviewService,
 			AgentRun:          agentRunService,
 			Mailman:           mailmanService,
@@ -653,7 +695,6 @@ func (impl *Implm) Run(
 				QueryCacheSize:    impl.cfg.Api.GraphQL.QueryCacheSize,
 				DisableSuggestion: impl.cfg.Api.GraphQL.DisableSuggestion,
 			},
-
 			CustomDomainCname: impl.cfg.CustomDomains.CnameTarget,
 			TokenSecret:       impl.cfg.Auth.Cookie.Secret,
 			Logger:            l.Named("http.server"),
@@ -830,8 +871,18 @@ func (impl *Implm) Run(
 
 	wg.Go(
 		func() {
-			if err := esignService.Run(esignServiceCtx, trustService.EmailPresenterConfigByOrganizationID); err != nil {
+			if err := esignService.Run(esignServiceCtx, trustService.GetPortalEmailPresenterConfigByOrganizationID); err != nil {
 				cancel(fmt.Errorf("esign service crashed: %w", err))
+			}
+		},
+	)
+
+	certManagerServiceCtx, stopCertManagerService := context.WithCancel(context.Background())
+
+	wg.Go(
+		func() {
+			if err := certManagerService.Run(certManagerServiceCtx); err != nil {
+				cancel(fmt.Errorf("certificate manager service crashed: %w", err))
 			}
 		},
 	)
@@ -1007,8 +1058,7 @@ func (impl *Implm) Run(
 				tp,
 				pgClient,
 				serverHandler.TrustCenterHandler(),
-				acmeService,
-				proboService,
+				trustService,
 				encryptionKey,
 			); err != nil {
 				cancel(fmt.Errorf("trust center server crashed: %w", err))
@@ -1022,6 +1072,7 @@ func (impl *Implm) Run(
 	stopTrustCenterServer()
 	stopWebhookWorker()
 	stopESignService()
+	stopCertManagerService()
 	stopTrackerPatternAnalysisWorker()
 	stopTrackerPolicyWorker()
 	stopTrackerMappingWorker()
@@ -1160,7 +1211,7 @@ func (impl *Implm) runApiServer(
 	return ctx.Err()
 }
 
-func newTrustCenterHTTPRedirectHandler(proboService *probo.Service, l *log.Logger) http.Handler {
+func newTrustCenterHTTPRedirectHandler(trustService *trust.Service, l *log.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -1176,11 +1227,15 @@ func newTrustCenterHTTPRedirectHandler(proboService *probo.Service, l *log.Logge
 			return
 		}
 
-		// Check if this domain is a trust center domain
-		_, err := proboService.LoadOrganizationByDomain(ctx, domain)
-		if err != nil {
-			// Not a trust center domain, return 404
-			httpserver.RenderError(w, http.StatusNotFound, errors.New("not found"))
+		// Check if this domain is a trust center custom domain
+		if _, err := trustService.GetPortalByDomainName(ctx, domain); err != nil {
+			if errors.Is(err, trust.ErrPageNotFound) || errors.Is(err, coredata.ErrResourceNotFound) {
+				// Not a trust center domain, return 404
+				httpserver.RenderError(w, http.StatusNotFound, errors.New("not found"))
+				return
+			}
+
+			httpserver.RenderError(w, http.StatusInternalServerError, errors.New("internal server error"))
 			return
 		}
 
@@ -1210,8 +1265,7 @@ func (impl *Implm) runTrustCenterServer(
 	tp trace.TracerProvider,
 	pgClient *pg.Client,
 	trustRouter http.Handler,
-	acmeService *certmanager.ACMEService,
-	proboService *probo.Service,
+	trustService *trust.Service,
 	encryptionKey cipher.EncryptionKey,
 ) error {
 	tracer := tp.Tracer("go.probo.inc/probo/pkg/probod")
@@ -1227,45 +1281,17 @@ func (impl *Implm) runTrustCenterServer(
 		l.ErrorCtx(ctx, "cannot warm certificate cache", log.Error(err))
 	}
 
-	renewalInterval := time.Duration(impl.cfg.CustomDomains.RenewalInterval) * time.Second
-	if renewalInterval == 0 {
-		renewalInterval = time.Hour
-	}
-
-	renewer := certmanager.NewRenewer(pgClient, acmeService, encryptionKey, renewalInterval, l)
-
-	certProvisioningInterval := time.Duration(impl.cfg.CustomDomains.ProvisionInterval) * time.Second
-	if certProvisioningInterval == 0 {
-		certProvisioningInterval = 30 * time.Second
-	}
-
-	certProvisioner := certmanager.NewProvisioner(pgClient, acmeService, encryptionKey, impl.cfg.CustomDomains.CnameTarget, impl.cfg.CustomDomains.CAAIssuerDomain, certProvisioningInterval, impl.cfg.CustomDomains.ResolverAddr, l)
-
 	g, ctx := errgroup.WithContext(ctx)
 
 	l.Info("starting trust center services")
 	span.AddEvent("Trust center services starting")
-
-	g.Go(
-		func() error {
-			l.Info("starting certificate renewer")
-			return renewer.Run(ctx)
-		},
-	)
-
-	g.Go(
-		func() error {
-			l.Info("starting certificate provisioner")
-			return certProvisioner.Run(ctx)
-		},
-	)
 
 	httpACMEHandler := certmanager.NewACMEChallengeHandler(
 		pgClient,
 		l.Named("http_acme_handler"),
 	)
 
-	httpRedirectHandler := newTrustCenterHTTPRedirectHandler(proboService, l.Named("http_redirect"))
+	httpRedirectHandler := newTrustCenterHTTPRedirectHandler(trustService, l.Named("http_redirect"))
 
 	httpServer := httpserver.NewServer(
 		impl.cfg.TrustCenter.HTTPAddr,

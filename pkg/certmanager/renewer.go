@@ -83,7 +83,7 @@ func (r *Renewer) checkAndRenew(ctx context.Context) error {
 			if err != nil {
 				r.logger.ErrorCtx(ctx, "cannot count certificate cache", log.Error(err))
 			} else if cacheCount == 0 {
-				r.logger.InfoCtx(ctx, "certificate cache is empty, rebuilding from custom_domains")
+				r.logger.InfoCtx(ctx, "certificate cache is empty, rebuilding from certificates")
 
 				warmer := NewCacheStore(r.pg, r.encryptionKey, r.logger)
 				if err := warmer.WarmCache(ctx); err != nil {
@@ -97,32 +97,32 @@ func (r *Renewer) checkAndRenew(ctx context.Context) error {
 				r.logger.ErrorCtx(ctx, "cannot clean certificate cache", log.Error(err))
 			}
 
-			domains := coredata.CustomDomains{}
+			certificates := coredata.Certificates{}
 
 			scope := coredata.NewNoScope()
-			if err := domains.ListDomainsForRenewal(ctx, tx, scope); err != nil {
-				return fmt.Errorf("cannot list domains for renewal: %w", err)
+			if err := certificates.ListForRenewal(ctx, tx, scope); err != nil {
+				return fmt.Errorf("cannot list certificates for renewal: %w", err)
 			}
 
-			if len(domains) == 0 {
+			if len(certificates) == 0 {
 				return nil
 			}
 
-			r.logger.InfoCtx(ctx, "found domains needing renewal", log.Int("count", len(domains)))
+			r.logger.InfoCtx(ctx, "found certificates needing renewal", log.Int("count", len(certificates)))
 
-			for _, domain := range domains {
+			for _, certificate := range certificates {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
 				default:
 				}
 
-				r.logger.InfoCtx(ctx, "renewing certificate for domain", log.String("domain", domain.Domain))
+				r.logger.InfoCtx(ctx, "renewing certificate for hostname", log.String("hostname", certificate.Hostname))
 
-				if err := r.renewDomain(ctx, tx, domain.ID); err != nil {
-					r.logger.ErrorCtx(ctx, "cannot renew certificate", log.String("domain", domain.Domain), log.Error(err))
+				if err := r.renewCertificate(ctx, tx, certificate.ID); err != nil {
+					r.logger.ErrorCtx(ctx, "cannot renew certificate", log.String("hostname", certificate.Hostname), log.Error(err))
 				} else {
-					r.logger.InfoCtx(ctx, "successfully renewed certificate", log.String("domain", domain.Domain))
+					r.logger.InfoCtx(ctx, "successfully renewed certificate", log.String("hostname", certificate.Hostname))
 				}
 			}
 
@@ -131,29 +131,29 @@ func (r *Renewer) checkAndRenew(ctx context.Context) error {
 	)
 }
 
-func (r *Renewer) renewDomain(ctx context.Context, tx pg.Tx, domainID gid.GID) error {
-	domain := &coredata.CustomDomain{}
-	if err := domain.LoadByIDForUpdateSkipLocked(ctx, tx, coredata.NewNoScope(), domainID); err != nil {
+func (r *Renewer) renewCertificate(ctx context.Context, tx pg.Tx, certificateID gid.GID) error {
+	certificate := &coredata.Certificate{}
+	if err := certificate.LoadByIDForUpdateSkipLocked(ctx, tx, coredata.NewNoScope(), certificateID); err != nil {
 		if errors.Is(err, coredata.ErrResourceNotFound) {
 			return nil
 		}
 
-		return fmt.Errorf("cannot lock domain for renewal: %w", err)
+		return fmt.Errorf("cannot lock certificate for renewal: %w", err)
 	}
 
-	if domain.SSLStatus != coredata.CustomDomainSSLStatusActive {
+	if certificate.Status != coredata.CertificateStatusActive {
 		r.logger.InfoCtx(
 			ctx,
-			"domain status changed, skipping renewal",
-			log.String("domain", domain.Domain),
+			"certificate status changed, skipping renewal",
+			log.String("hostname", certificate.Hostname),
 		)
 
 		return nil
 	}
 
-	domain.SSLStatus = coredata.CustomDomainSSLStatusRenewing
-	if err := domain.Update(ctx, tx, coredata.NewNoScope()); err != nil {
-		return fmt.Errorf("cannot update domain status: %w", err)
+	certificate.Status = coredata.CertificateStatusRenewing
+	if err := certificate.Update(ctx, tx, coredata.NewNoScope()); err != nil {
+		return fmt.Errorf("cannot update certificate status: %w", err)
 	}
 
 	return nil

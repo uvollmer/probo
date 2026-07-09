@@ -91,12 +91,12 @@ func (s *Service) mailingListEmailConfig(
 				return fmt.Errorf("cannot load organization: %w", err)
 			}
 
-			customDomain = &coredata.CustomDomain{}
-			if err := customDomain.LoadByOrganizationID(ctx, conn, scope, organization.ID); err != nil {
-				if !errors.Is(err, coredata.ErrResourceNotFound) {
-					return fmt.Errorf("cannot load custom domain: %w", err)
-				}
+			effective, err := effectiveComplianceDomain(ctx, conn, scope, compliancePage)
+			if err != nil {
+				return err
 			}
+
+			customDomain = effective
 
 			return nil
 		},
@@ -133,7 +133,7 @@ func (s *Service) presenterConfigFromTrustCenter(
 
 	compliancePageBase := s.apiBaseURL.WithPath("/trust/" + compliancePage.ID.String())
 
-	if customDomain != nil && customDomain.SSLStatus == coredata.CustomDomainSSLStatusActive {
+	if customDomain != nil {
 		customBase, err := baseurl.Parse("https://" + customDomain.Domain)
 		if err != nil {
 			return cfg, "", fmt.Errorf("cannot parse custom domain URL: %w", err)
@@ -163,4 +163,79 @@ func (s *Service) presenterConfigFromTrustCenter(
 	}
 
 	return cfg, compliancePageURL, nil
+}
+
+// effectiveComplianceDomain returns the domain a compliance page is served
+// under: the customer domain when its certificate is active, otherwise the
+// managed subdomain when active. It returns nil when no serving domain is
+// available yet.
+func effectiveComplianceDomain(
+	ctx context.Context, conn pg.Querier,
+	scope coredata.Scoper,
+	compliancePage *coredata.TrustCenter,
+) (*coredata.CustomDomain, error) {
+	var ids []gid.GID
+	if compliancePage.CustomDomainID != nil {
+		ids = append(ids, *compliancePage.CustomDomainID)
+	}
+
+	if compliancePage.DefaultDomainID != nil {
+		ids = append(ids, *compliancePage.DefaultDomainID)
+	}
+
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	var domains coredata.CustomDomains
+	if err := domains.LoadByIDs(ctx, conn, scope, ids); err != nil {
+		if errors.Is(err, coredata.ErrResourceNotFound) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("cannot load custom domains: %w", err)
+	}
+
+	byID := make(map[gid.GID]*coredata.CustomDomain, len(domains))
+
+	var certificateIDs []gid.GID
+
+	domainByCertificate := make(map[gid.GID]gid.GID)
+
+	for _, d := range domains {
+		byID[d.ID] = d
+		if d.CertificateID != nil {
+			certificateIDs = append(certificateIDs, *d.CertificateID)
+			domainByCertificate[*d.CertificateID] = d.ID
+		}
+	}
+
+	active := make(map[gid.GID]bool)
+
+	if len(certificateIDs) > 0 {
+		var certificates coredata.Certificates
+		if err := certificates.LoadByIDs(ctx, conn, scope, certificateIDs); err != nil {
+			return nil, fmt.Errorf("cannot load certificates: %w", err)
+		}
+
+		for _, c := range certificates {
+			if domainID, ok := domainByCertificate[c.ID]; ok {
+				active[domainID] = c.Status == coredata.CertificateStatusActive
+			}
+		}
+	}
+
+	if compliancePage.CustomDomainID != nil {
+		if d := byID[*compliancePage.CustomDomainID]; d != nil && active[d.ID] {
+			return d, nil
+		}
+	}
+
+	if compliancePage.DefaultDomainID != nil {
+		if d := byID[*compliancePage.DefaultDomainID]; d != nil && active[d.ID] {
+			return d, nil
+		}
+	}
+
+	return nil, nil
 }

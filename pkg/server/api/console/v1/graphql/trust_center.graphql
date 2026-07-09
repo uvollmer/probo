@@ -290,6 +290,12 @@ type TrustCenter implements Node
 
     mailingList: MailingList @goField(forceResolver: true)
 
+    defaultDomain: CustomDomain @goField(forceResolver: true)
+
+    customDomain: CustomDomain @goField(forceResolver: true)
+
+    publicUrl: String! @goField(forceResolver: true)
+
     permission(action: String!): Boolean! @goField(forceResolver: true)
 }
 
@@ -470,6 +476,7 @@ type CustomDomain implements Node {
     id: ID!
     organization: Organization!
     domain: String!
+    managed: Boolean!
     sslStatus: SSLStatus!
     sslExpiresAt: Datetime
     provisioningError: String
@@ -668,12 +675,12 @@ input DeleteTrustCenterFileInput {
 }
 
 input CreateCustomDomainInput {
-    organizationId: ID!
+    trustCenterId: ID!
     domain: String!
 }
 
 input DeleteCustomDomainInput {
-    organizationId: ID!
+    customDomainId: ID!
 }
 
 type UpdateTrustCenterPayload {

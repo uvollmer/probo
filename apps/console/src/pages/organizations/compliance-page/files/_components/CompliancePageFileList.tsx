@@ -30,8 +30,8 @@ const fragment = graphql`
     compliancePage: trustCenter @required(action: THROW) {
       ...CompliancePageFileListItem_compliancePageFragment
     }
-    trustCenterFiles(first: 100)
-      @connection(key: "CompliancePageFileList_trustCenterFiles") {
+    compliancePageFiles: trustCenterFiles(first: 100)
+      @connection(key: "CompliancePageFileList_compliancePageFiles") {
       __id
       edges {
         node {
@@ -51,7 +51,7 @@ export function CompliancePageFileList(props: { fragmentRef: CompliancePageFileL
 
   const {
     compliancePage,
-    trustCenterFiles: files,
+    compliancePageFiles: files,
   } = useFragment<CompliancePageFileListFragment$key>(fragment, fragmentRef);
 
   const [editingFile, setEditingFile] = useState<

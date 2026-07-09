@@ -12,7 +12,7 @@
 // OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 // PERFORMANCE OF THIS SOFTWARE.
 
-import { getTrustCenterVisibilityOptions } from "@probo/helpers";
+import { getCompliancePageVisibilityOptions } from "@probo/helpers";
 import { useTranslate } from "@probo/i18n";
 import { Badge, DocumentTypeBadge, Field, Option, Td, Tr } from "@probo/ui";
 import { useCallback } from "react";
@@ -28,7 +28,7 @@ import { CompliancePageAliasField } from "../../_components/CompliancePageAliasF
 
 const compliancePageFragment = graphql`
   fragment CompliancePageDocumentListItem_compliancePageFragment on TrustCenter {
-    canUpdate: permission(action: "core:trust-center:update")
+    canUpdate: permission(action: "compliance-portal:portal:update")
   }
 `;
 
@@ -38,7 +38,7 @@ const documentFragment = graphql`
     alias
     canSetAlias: permission(action: "resourcealias:alias:set")
     canRemoveAlias: permission(action: "resourcealias:alias:remove")
-    trustCenterVisibility
+    compliancePageVisibility: trustCenterVisibility
     latestPublishedVersion: versions(
       first: 1
       orderBy: { field: CREATED_AT, direction: DESC }
@@ -74,7 +74,7 @@ export function CompliancePageDocumentListItem(props: {
 
   const organizationId = useOrganizationId();
   const { __ } = useTranslate();
-  const visibilityOptions = getTrustCenterVisibilityOptions(__);
+  const visibilityOptions = getCompliancePageVisibilityOptions(__);
 
   const compliancePage = useFragment<CompliancePageDocumentListItem_compliancePageFragment$key>(
     compliancePageFragment,
@@ -129,7 +129,7 @@ export function CompliancePageDocumentListItem(props: {
       <Td noLink width={130} className="pr-0">
         <Field
           type="select"
-          value={document.trustCenterVisibility}
+          value={document.compliancePageVisibility}
           onValueChange={value => void handleVsibilityChange(value)}
           disabled={isUpdatingDocumentVisibility || !compliancePage.canUpdate}
           className="w-[105px]"

@@ -18,7 +18,7 @@ import { useFragment } from "react-relay";
 import { graphql } from "relay-runtime";
 
 import type { CompliancePageNDASectionFragment$key } from "#/__generated__/core/CompliancePageNDASectionFragment.graphql";
-import { useDeleteTrustCenterNDAMutation, useUploadTrustCenterNDAMutation } from "#/hooks/graph/TrustCenterGraph";
+import { useDeleteCompliancePageNDAMutation, useUploadCompliancePageNDAMutation } from "#/hooks/graph/CompliancePageGraph";
 
 const fragment = graphql`
   fragment CompliancePageNDASectionFragment on Organization {
@@ -28,8 +28,8 @@ const fragment = graphql`
         fileName
         downloadUrl
       }
-      canUploadNDA: permission(action: "core:trust-center:upload-nda")
-      canDeleteNDA: permission(action: "core:trust-center:delete-nda")
+      canUploadNDA: permission(action: "compliance-portal:portal:upload-nda")
+      canDeleteNDA: permission(action: "compliance-portal:portal:delete-nda")
     }
   }
 `;
@@ -42,8 +42,8 @@ export function CompliancePageNDASection(props: { fragmentRef: CompliancePageNDA
 
   const organization = useFragment<CompliancePageNDASectionFragment$key>(fragment, fragmentRef);
 
-  const [uploadNDA, isUploadingNDA] = useUploadTrustCenterNDAMutation();
-  const [deleteNDA, isDeletingNDA] = useDeleteTrustCenterNDAMutation();
+  const [uploadNDA, isUploadingNDA] = useUploadCompliancePageNDAMutation();
+  const [deleteNDA, isDeletingNDA] = useDeleteCompliancePageNDAMutation();
 
   const handleNDAUpload = async (files: File[]) => {
     if (!organization.compliancePage?.id) {

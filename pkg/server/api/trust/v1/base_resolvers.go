@@ -11,14 +11,14 @@ import (
 	"strings"
 
 	"go.gearno.de/kit/log"
+	trust "go.probo.inc/probo/pkg/complianceportal/visitor"
 	"go.probo.inc/probo/pkg/coredata"
 	"go.probo.inc/probo/pkg/gid"
 	"go.probo.inc/probo/pkg/server/api/authn"
-	"go.probo.inc/probo/pkg/server/api/compliancepage"
+	"go.probo.inc/probo/pkg/server/api/complianceportal"
 	"go.probo.inc/probo/pkg/server/api/trust/v1/schema"
 	"go.probo.inc/probo/pkg/server/api/trust/v1/types"
 	"go.probo.inc/probo/pkg/server/gqlutils"
-	"go.probo.inc/probo/pkg/trust"
 )
 
 // Viewer is the resolver for the viewer field.
@@ -46,7 +46,7 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 
 	switch id.EntityType() {
 	case coredata.OrganizationEntityType:
-		organization, err := trustService.Organizations.Get(ctx, scope, id)
+		organization, err := trustService.GetOrganization(ctx, scope, id)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot get organization", log.Error(err))
 			return nil, gqlutils.Internal(ctx)
@@ -55,9 +55,9 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 		return types.NewOrganization(organization), nil
 
 	case coredata.DocumentEntityType:
-		trustCenter := compliancepage.CompliancePageFromContext(ctx)
+		trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
-		document, err := trustService.Documents.Get(ctx, scope, trustCenter.OrganizationID, id)
+		document, err := trustService.GetDocument(ctx, scope, trustCenter.OrganizationID, id)
 		if err != nil {
 			if errors.Is(err, trust.ErrDocumentNotFound) || errors.Is(err, trust.ErrDocumentNotVisible) || errors.Is(err, coredata.ErrResourceNotFound) {
 				return nil, gqlutils.NotFoundf(ctx, "node %q not found", id)
@@ -75,7 +75,7 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 		return types.NewDocument(document), nil
 
 	case coredata.FrameworkEntityType:
-		framework, err := trustService.Frameworks.Get(ctx, scope, id)
+		framework, err := trustService.GetFramework(ctx, scope, id)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot get framework", log.Error(err))
 			return nil, gqlutils.Internal(ctx)
@@ -84,9 +84,9 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 		return types.NewFramework(framework), nil
 
 	case coredata.FileEntityType:
-		trustCenter := compliancepage.CompliancePageFromContext(ctx)
+		trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
-		file, err := trustService.Reports.Get(ctx, scope, trustCenter.OrganizationID, id)
+		file, err := trustService.GetReport(ctx, scope, trustCenter.OrganizationID, id)
 		if err != nil {
 			if errors.Is(err, trust.ErrReportNotFound) || errors.Is(err, coredata.ErrResourceNotFound) {
 				return nil, gqlutils.NotFoundf(ctx, "node %q not found", id)
@@ -100,7 +100,7 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 		return types.NewAuditReport(file), nil
 
 	case coredata.AuditEntityType:
-		audit, err := trustService.Audits.Get(ctx, scope, id)
+		audit, err := trustService.GetAudit(ctx, scope, id)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot get audit", log.Error(err))
 			return nil, gqlutils.Internal(ctx)
@@ -109,7 +109,7 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 		return types.NewAudit(audit), nil
 
 	case coredata.ThirdPartyEntityType:
-		thirdParty, err := trustService.ThirdParties.Get(ctx, scope, id)
+		thirdParty, err := trustService.GetThirdParty(ctx, scope, id)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot get thirdParty", log.Error(err))
 			return nil, gqlutils.Internal(ctx)
@@ -118,7 +118,7 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 		return types.NewSubprocessor(thirdParty), nil
 
 	case coredata.TrustCenterEntityType:
-		trustCenter, err := trustService.TrustCenters.Get(ctx, scope, id)
+		trustCenter, err := trustService.GetPortal(ctx, scope, id)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot get trust center", log.Error(err))
 			return nil, gqlutils.Internal(ctx)
@@ -127,7 +127,7 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 		return types.NewTrustCenter(trustCenter), nil
 
 	case coredata.TrustCenterReferenceEntityType:
-		reference, err := trustService.TrustCenterReferences.Get(ctx, scope, id)
+		reference, err := trustService.GetPortalReference(ctx, scope, id)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot get trust center reference", log.Error(err))
 			return nil, gqlutils.Internal(ctx)
@@ -136,9 +136,9 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 		return types.NewTrustCenterReference(reference), nil
 
 	case coredata.TrustCenterFileEntityType:
-		trustCenter := compliancepage.CompliancePageFromContext(ctx)
+		trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
-		trustCenterFile, err := trustService.TrustCenterFiles.Get(ctx, scope, trustCenter.OrganizationID, id)
+		trustCenterFile, err := trustService.GetPortalFile(ctx, scope, trustCenter.OrganizationID, id)
 		if err != nil {
 			if errors.Is(err, trust.ErrTrustCenterFileNotFound) || errors.Is(err, trust.ErrTrustCenterFileNotVisible) {
 				return nil, gqlutils.NotFoundf(ctx, "node %q not found", id)
@@ -160,7 +160,7 @@ func (r *queryResolver) Node(ctx context.Context, id gid.GID) (types.Node, error
 func (r *queryResolver) AliasedNode(ctx context.Context, alias string) (types.Node, error) {
 	resourceID, err := gid.ParseGID(alias)
 	if err != nil {
-		trustCenter := compliancepage.CompliancePageFromContext(ctx)
+		trustCenter := complianceportal.CompliancePageFromContext(ctx)
 		scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 
 		resourceID, err = r.resourceAlias.ResolveAlias(
@@ -184,18 +184,18 @@ func (r *queryResolver) AliasedNode(ctx context.Context, alias string) (types.No
 
 // CurrentTrustCenter is the resolver for the currentTrustCenter field.
 func (r *queryResolver) CurrentTrustCenter(ctx context.Context) (*types.TrustCenter, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
 	scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 	trustService := r.trust
 
-	org, err := trustService.Organizations.Get(ctx, scope, trustCenter.OrganizationID)
+	org, err := trustService.GetOrganization(ctx, scope, trustCenter.OrganizationID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot get organization", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
 	}
 
-	trustCenter, err = trustService.TrustCenters.Get(ctx, scope, trustCenter.ID)
+	trustCenter, err = trustService.GetPortal(ctx, scope, trustCenter.ID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot get trust center", log.Error(err))
 		return nil, gqlutils.Internal(ctx)

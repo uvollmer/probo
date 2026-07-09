@@ -29,7 +29,6 @@ import { z } from "zod";
 import type { NewCompliancePageDomainDialogMutation } from "#/__generated__/core/NewCompliancePageDomainDialogMutation.graphql";
 import { useFormWithSchema } from "#/hooks/useFormWithSchema";
 import { useMutationWithToasts } from "#/hooks/useMutationWithToasts";
-import { useOrganizationId } from "#/hooks/useOrganizationId";
 
 const createCustomDomainMutation = graphql`
   mutation NewCompliancePageDomainDialogMutation($input: CreateCustomDomainInput!) {
@@ -37,6 +36,7 @@ const createCustomDomainMutation = graphql`
       customDomain {
         id
         domain
+        managed
         sslStatus
         dnsRecords {
           type
@@ -48,7 +48,8 @@ const createCustomDomainMutation = graphql`
         createdAt
         updatedAt
         sslExpiresAt
-        canDelete: permission(action: "core:custom-domain:delete")
+        canDelete: permission(action: "compliance-portal:custom-domain:delete")
+        ...CompliancePageDomainCardFragment
       }
     }
   }
@@ -64,10 +65,9 @@ const schema = z.object({
     ),
 });
 
-export function NewCompliancePageDomainDialog(props: PropsWithChildren) {
-  const { children } = props;
+export function NewCompliancePageDomainDialog(props: PropsWithChildren<{ compliancePageId: string }>) {
+  const { children, compliancePageId } = props;
 
-  const organizationId = useOrganizationId();
   const { __ } = useTranslate();
   const dialogRef = useDialogRef();
 
@@ -98,23 +98,20 @@ export function NewCompliancePageDomainDialog(props: PropsWithChildren) {
     await createCustomDomain({
       variables: {
         input: {
-          organizationId,
+          trustCenterId: compliancePageId,
           domain: normalizedDomain,
         },
       },
       updater: (store, data) => {
-        // Update the cache by setting the new customDomain on the organization
-        const organizationRecord = store.get(organizationId);
-        if (organizationRecord && data?.createCustomDomain?.customDomain) {
-          const customDomainRecord = store.get(
-            data.createCustomDomain.customDomain.id,
-          );
-          if (customDomainRecord) {
-            organizationRecord.setLinkedRecord(
-              customDomainRecord,
-              "customDomain",
-            );
-          }
+        const newDomainId = data?.createCustomDomain?.customDomain?.id;
+        if (!newDomainId) {
+          return;
+        }
+
+        const compliancePageRecord = store.get(compliancePageId);
+        const newDomainRecord = store.get(newDomainId);
+        if (compliancePageRecord && newDomainRecord) {
+          compliancePageRecord.setLinkedRecord(newDomainRecord, "customDomain");
         }
       },
       onSuccess: () => {
@@ -154,7 +151,7 @@ export function NewCompliancePageDomainDialog(props: PropsWithChildren) {
               <strong>{__("Examples:")}</strong>
               {" "}
               compliance.example.com,
-              trust.example.com
+              compliance.example.com
             </p>
           </div>
         </DialogContent>

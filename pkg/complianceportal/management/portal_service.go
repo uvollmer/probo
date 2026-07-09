@@ -1,0 +1,722 @@
+// Copyright (c) 2025-2026 Probo Inc <hello@probo.com>.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+// REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+// AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+// INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+// LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+// OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+// PERFORMANCE OF THIS SOFTWARE.
+
+package management
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"mime"
+	"net/url"
+	"path/filepath"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"go.gearno.de/crypto/uuid"
+	"go.gearno.de/kit/pg"
+	"go.probo.inc/probo/packages/emails"
+	"go.probo.inc/probo/pkg/complianceportal"
+	"go.probo.inc/probo/pkg/coredata"
+	"go.probo.inc/probo/pkg/filevalidation"
+	"go.probo.inc/probo/pkg/gid"
+	"go.probo.inc/probo/pkg/validator"
+)
+
+type (
+	UpdatePortalRequest struct {
+		ID                           gid.GID
+		Active                       *bool
+		Slug                         *string
+		SearchEngineIndexing         *coredata.SearchEngineIndexing
+		NonDisclosureAgreementFileID *gid.GID
+	}
+
+	UploadPortalNDARequest struct {
+		TrustCenterID gid.GID
+		File          io.Reader
+		FileName      string
+	}
+
+	UpdatePortalBrandRequest struct {
+		TrustCenterID gid.GID
+		LogoFile      **FileUpload
+		DarkLogoFile  **FileUpload
+	}
+)
+
+const maxBrandFileSize = 5 * 1024 * 1024 // 5MB
+
+func (utcr *UpdatePortalRequest) Validate() error {
+	v := validator.New()
+
+	v.Check(utcr.ID, "id", validator.Required(), validator.GID(coredata.TrustCenterEntityType))
+	v.Check(utcr.Slug, "slug", validator.SafeText(NameMaxLength))
+	v.Check(utcr.NonDisclosureAgreementFileID, "non_disclosure_agreement_file_id", validator.GID(coredata.FileEntityType))
+
+	return v.Error()
+}
+
+func (utcndar *UploadPortalNDARequest) Validate() error {
+	v := validator.New()
+
+	v.Check(utcndar.TrustCenterID, "trust_center_id", validator.Required(), validator.GID(coredata.TrustCenterEntityType))
+	v.Check(utcndar.FileName, "file_name", validator.SafeTextNoNewLine(TitleMaxLength))
+
+	return v.Error()
+}
+
+func (req *UpdatePortalBrandRequest) Validate() error {
+	fv := filevalidation.NewValidator(
+		filevalidation.WithCategories(filevalidation.CategoryImage),
+		filevalidation.WithMaxFileSize(maxBrandFileSize),
+	)
+
+	if req.LogoFile != nil && *req.LogoFile != nil {
+		logoFile := *req.LogoFile
+		if err := fv.Validate(logoFile.Filename, logoFile.ContentType, logoFile.Size); err != nil {
+			return fmt.Errorf("invalid logo file: %w", err)
+		}
+	}
+
+	if req.DarkLogoFile != nil && *req.DarkLogoFile != nil {
+		darkLogoFile := *req.DarkLogoFile
+		if err := fv.Validate(darkLogoFile.Filename, darkLogoFile.ContentType, darkLogoFile.Size); err != nil {
+			return fmt.Errorf("invalid dark logo file: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) GetPortal(
+	ctx context.Context,
+	scope coredata.Scoper,
+	trustCenterID gid.GID,
+) (*coredata.TrustCenter, error) {
+	var trustCenter *coredata.TrustCenter
+
+	err := s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			trustCenter = &coredata.TrustCenter{}
+			if err := trustCenter.LoadByID(ctx, conn, scope, trustCenterID); err != nil {
+				return fmt.Errorf("cannot load trust center: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cannot load trust center: %w", err)
+	}
+
+	return trustCenter, nil
+}
+
+func (s *Service) GetPortalByOrganizationID(
+	ctx context.Context,
+	scope coredata.Scoper,
+	organizationID gid.GID,
+) (*coredata.TrustCenter, error) {
+	var trustCenter *coredata.TrustCenter
+
+	err := s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			trustCenter = &coredata.TrustCenter{}
+			if err := trustCenter.LoadByOrganizationID(ctx, conn, scope, organizationID); err != nil {
+				return fmt.Errorf("cannot load trust center: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return trustCenter, nil
+}
+
+func (s *Service) UpdatePortal(
+	ctx context.Context,
+	scope coredata.Scoper,
+	req *UpdatePortalRequest,
+) (*coredata.TrustCenter, *coredata.File, error) {
+	if err := req.Validate(); err != nil {
+		return nil, nil, err
+	}
+
+	var (
+		trustCenter *coredata.TrustCenter
+		file        *coredata.File
+	)
+
+	err := s.pg.WithTx(
+		ctx,
+		func(ctx context.Context, conn pg.Tx) error {
+			trustCenter = &coredata.TrustCenter{}
+			if err := trustCenter.LoadByID(ctx, conn, scope, req.ID); err != nil {
+				return fmt.Errorf("cannot load trust center: %w", err)
+			}
+
+			if req.Active != nil {
+				trustCenter.Active = *req.Active
+			}
+
+			if req.Slug != nil {
+				trustCenter.Slug = *req.Slug
+			}
+
+			if req.SearchEngineIndexing != nil {
+				trustCenter.SearchEngineIndexing = *req.SearchEngineIndexing
+			}
+
+			trustCenter.UpdatedAt = time.Now()
+
+			if err := trustCenter.Update(ctx, conn, scope); err != nil {
+				return fmt.Errorf("cannot update trust center: %w", err)
+			}
+
+			if trustCenter.NonDisclosureAgreementFileID != nil {
+				file = &coredata.File{}
+				if err := file.LoadByID(ctx, conn, scope, *trustCenter.NonDisclosureAgreementFileID); err != nil {
+					return fmt.Errorf("cannot load file: %w", err)
+				}
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return trustCenter, file, nil
+}
+
+func (s *Service) UploadPortalNDA(
+	ctx context.Context,
+	scope coredata.Scoper,
+	req *UploadPortalNDARequest,
+) (*coredata.TrustCenter, *coredata.File, error) {
+	if err := req.Validate(); err != nil {
+		return nil, nil, err
+	}
+
+	var (
+		trustCenter *coredata.TrustCenter
+		file        *coredata.File
+	)
+
+	err := s.pg.WithTx(
+		ctx,
+		func(ctx context.Context, conn pg.Tx) error {
+			trustCenter = &coredata.TrustCenter{}
+			if err := trustCenter.LoadByID(ctx, conn, scope, req.TrustCenterID); err != nil {
+				return fmt.Errorf("cannot load trust center: %w", err)
+			}
+
+			if trustCenter.OrganizationID == gid.Nil {
+				return fmt.Errorf("trust center %s has no organization", req.TrustCenterID)
+			}
+
+			objectKey, err := uuid.NewV7()
+			if err != nil {
+				return fmt.Errorf("cannot generate object key: %w", err)
+			}
+
+			mimeType := mime.TypeByExtension(filepath.Ext(req.FileName))
+			if mimeType == "" {
+				mimeType = "application/octet-stream"
+			}
+
+			now := time.Now()
+			fileID := gid.New(scope.GetTenantID(), coredata.FileEntityType)
+
+			file = &coredata.File{
+				ID:             fileID,
+				OrganizationID: trustCenter.OrganizationID,
+				BucketName:     s.bucket,
+				MimeType:       mimeType,
+				FileName:       req.FileName,
+				FileKey:        objectKey.String(),
+				Visibility:     coredata.FileVisibilityPrivate,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			}
+
+			fileSize, err := s.fileManager.PutFile(
+				ctx,
+				file,
+				req.File,
+				map[string]string{
+					"type":            "trust-center-nda",
+					"trust-center-id": req.TrustCenterID.String(),
+					"organization-id": trustCenter.OrganizationID.String(),
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("cannot upload file to S3: %w", err)
+			}
+
+			file.FileSize = fileSize
+
+			if err := file.Insert(ctx, conn, scope); err != nil {
+				return fmt.Errorf("cannot insert file: %w", err)
+			}
+
+			trustCenter.NonDisclosureAgreementFileID = &fileID
+			trustCenter.UpdatedAt = now
+
+			if err := trustCenter.Update(ctx, conn, scope); err != nil {
+				return fmt.Errorf("cannot update trust center: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return trustCenter, file, nil
+}
+
+func (s *Service) DeletePortalNDA(
+	ctx context.Context,
+	scope coredata.Scoper,
+	trustCenterID gid.GID,
+) (*coredata.TrustCenter, *coredata.File, error) {
+	var trustCenter *coredata.TrustCenter
+
+	err := s.pg.WithTx(
+		ctx,
+		func(ctx context.Context, conn pg.Tx) error {
+			trustCenter = &coredata.TrustCenter{}
+			if err := trustCenter.LoadByID(ctx, conn, scope, trustCenterID); err != nil {
+				return fmt.Errorf("cannot load trust center: %w", err)
+			}
+
+			trustCenter.NonDisclosureAgreementFileID = nil
+			trustCenter.UpdatedAt = time.Now()
+
+			if err := trustCenter.Update(ctx, conn, scope); err != nil {
+				return fmt.Errorf("cannot update trust center: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return trustCenter, nil, nil
+}
+
+func (s *Service) UpdatePortalBrand(
+	ctx context.Context,
+	scope coredata.Scoper,
+	req *UpdatePortalBrandRequest,
+) (*coredata.TrustCenter, *coredata.File, error) {
+	if err := req.Validate(); err != nil {
+		return nil, nil, err
+	}
+
+	var (
+		trustCenter *coredata.TrustCenter
+		ndaFile     *coredata.File
+	)
+
+	err := s.pg.WithTx(
+		ctx,
+		func(ctx context.Context, conn pg.Tx) error {
+			trustCenter = &coredata.TrustCenter{}
+			if err := trustCenter.LoadByID(ctx, conn, scope, req.TrustCenterID); err != nil {
+				return fmt.Errorf("cannot load trust center: %w", err)
+			}
+
+			now := time.Now()
+
+			if req.LogoFile != nil {
+				if *req.LogoFile == nil {
+					trustCenter.LogoFileID = nil
+				} else {
+					file, err := s.uploadPortalBrandFile(ctx, scope, conn, *req.LogoFile, "trust-center-logo", trustCenter)
+					if err != nil {
+						return fmt.Errorf("cannot upload logo file: %w", err)
+					}
+
+					trustCenter.LogoFileID = &file.ID
+				}
+			}
+
+			if req.DarkLogoFile != nil {
+				if *req.DarkLogoFile == nil {
+					trustCenter.DarkLogoFileID = nil
+				} else {
+					file, err := s.uploadPortalBrandFile(ctx, scope, conn, *req.DarkLogoFile, "trust-center-dark-logo", trustCenter)
+					if err != nil {
+						return fmt.Errorf("cannot upload dark logo file: %w", err)
+					}
+
+					trustCenter.DarkLogoFileID = &file.ID
+				}
+			}
+
+			trustCenter.UpdatedAt = now
+
+			if err := trustCenter.Update(ctx, conn, scope); err != nil {
+				return fmt.Errorf("cannot update trust center: %w", err)
+			}
+
+			if trustCenter.NonDisclosureAgreementFileID != nil {
+				ndaFile = &coredata.File{}
+				if err := ndaFile.LoadByID(ctx, conn, scope, *trustCenter.NonDisclosureAgreementFileID); err != nil {
+					return fmt.Errorf("cannot load nda file: %w", err)
+				}
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return trustCenter, ndaFile, nil
+}
+
+func (s *Service) uploadPortalBrandFile(
+	ctx context.Context,
+	scope coredata.Scoper,
+	conn pg.Tx,
+	fileUpload *FileUpload,
+	fileType string,
+	trustCenter *coredata.TrustCenter,
+) (*coredata.File, error) {
+	objectKey, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate object key: %w", err)
+	}
+
+	mimeType := fileUpload.ContentType
+	if mimeType == "" {
+		mimeType = mime.TypeByExtension(filepath.Ext(fileUpload.Filename))
+	}
+
+	_, err = s.s3.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:       &s.bucket,
+		Key:          new(objectKey.String()),
+		Body:         fileUpload.Content,
+		ContentType:  &mimeType,
+		CacheControl: new("max-age=3600, public"),
+		Metadata: map[string]string{
+			"type":            fileType,
+			"trust-center-id": trustCenter.ID.String(),
+			"organization-id": trustCenter.OrganizationID.String(),
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot upload file to S3: %w", err)
+	}
+
+	headOutput, err := s.s3.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: new(s.bucket),
+		Key:    new(objectKey.String()),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot get object metadata: %w", err)
+	}
+
+	now := time.Now()
+	fileID := gid.New(scope.GetTenantID(), coredata.FileEntityType)
+
+	file := &coredata.File{
+		ID:             fileID,
+		OrganizationID: trustCenter.OrganizationID,
+		BucketName:     s.bucket,
+		MimeType:       mimeType,
+		FileName:       fileUpload.Filename,
+		FileKey:        objectKey.String(),
+		FileSize:       *headOutput.ContentLength,
+		Visibility:     coredata.FileVisibilityPublic,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if err := file.Insert(ctx, conn, scope); err != nil {
+		return nil, fmt.Errorf("cannot insert file: %w", err)
+	}
+
+	return file, nil
+}
+
+func (s *Service) GeneratePortalNDAFileURL(
+	ctx context.Context,
+	scope coredata.Scoper,
+	trustCenterID gid.GID,
+	expiresIn time.Duration,
+) (*string, error) {
+	var file *coredata.File
+
+	trustCenter := &coredata.TrustCenter{}
+
+	err := s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			if err := trustCenter.LoadByID(ctx, conn, scope, trustCenterID); err != nil {
+				return fmt.Errorf("cannot load trust center: %w", err)
+			}
+
+			if trustCenter.NonDisclosureAgreementFileID == nil {
+				return nil
+			}
+
+			file = &coredata.File{}
+			if err := file.LoadByID(ctx, conn, scope, *trustCenter.NonDisclosureAgreementFileID); err != nil {
+				return fmt.Errorf("cannot load file: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if trustCenter.NonDisclosureAgreementFileID == nil {
+		return nil, nil
+	}
+
+	presignedURL, err := s.fileManager.GeneratePresignedURL(ctx, file, expiresIn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate file URL: %w", err)
+	}
+
+	return &presignedURL, nil
+}
+
+func (s *Service) GeneratePortalLogoURL(
+	ctx context.Context,
+	scope coredata.Scoper,
+	compliancePageID gid.GID,
+	expiresIn time.Duration,
+) (*string, error) {
+	file := &coredata.File{}
+	compliancePage := &coredata.TrustCenter{}
+
+	err := s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			if err := compliancePage.LoadByID(ctx, conn, scope, compliancePageID); err != nil {
+				return fmt.Errorf("cannot load compliance page: %w", err)
+			}
+
+			if compliancePage.LogoFileID == nil {
+				return nil
+			}
+
+			if err := file.LoadByID(ctx, conn, scope, *compliancePage.LogoFileID); err != nil {
+				return fmt.Errorf("cannot load file: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if compliancePage.LogoFileID == nil {
+		return nil, nil
+	}
+
+	if file.FileKey == "" {
+		return nil, nil
+	}
+
+	presignedURL, err := s.fileManager.GeneratePresignedURL(ctx, file, expiresIn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate file URL: %w", err)
+	}
+
+	return &presignedURL, nil
+}
+
+func (s *Service) GeneratePortalDarkLogoURL(
+	ctx context.Context,
+	scope coredata.Scoper,
+	compliancePageID gid.GID,
+	expiresIn time.Duration,
+) (*string, error) {
+	file := &coredata.File{}
+	compliancePage := &coredata.TrustCenter{}
+
+	err := s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			if err := compliancePage.LoadByID(ctx, conn, scope, compliancePageID); err != nil {
+				return fmt.Errorf("cannot load compliance page: %w", err)
+			}
+
+			if compliancePage.DarkLogoFileID == nil {
+				return nil
+			}
+
+			if err := file.LoadByID(ctx, conn, scope, *compliancePage.DarkLogoFileID); err != nil {
+				return fmt.Errorf("cannot load file: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if compliancePage.DarkLogoFileID == nil {
+		return nil, nil
+	}
+
+	if file.FileKey == "" {
+		return nil, nil
+	}
+
+	presignedURL, err := s.fileManager.GeneratePresignedURL(ctx, file, expiresIn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate file URL: %w", err)
+	}
+
+	return &presignedURL, nil
+}
+
+func (s *Service) PortalEmailPresenterConfig(
+	ctx context.Context,
+	scope coredata.Scoper,
+	compliancePageID gid.GID,
+) (emails.PresenterConfig, error) {
+	var (
+		compliancePage    = &coredata.TrustCenter{}
+		organization      = &coredata.Organization{}
+		customDomain      *coredata.CustomDomain
+		logoFile          = &coredata.File{}
+		emailPresenterCfg = emails.DefaultPresenterConfig(s.baseURL)
+	)
+
+	err := s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			if err := compliancePage.LoadByID(ctx, conn, scope, compliancePageID); err != nil {
+				return fmt.Errorf("cannot load compliance page: %w", err)
+			}
+
+			if compliancePage.LogoFileID != nil {
+				if err := logoFile.LoadByID(ctx, conn, scope, *compliancePage.LogoFileID); err != nil {
+					return fmt.Errorf("cannot load logoFile: %w", err)
+				}
+			}
+
+			if err := organization.LoadByID(ctx, conn, scope, compliancePage.OrganizationID); err != nil {
+				return fmt.Errorf("cannot load organization: %w", err)
+			}
+
+			effective, err := complianceportal.EffectiveDomainForTrustCenter(ctx, conn, scope, compliancePage)
+			if err != nil {
+				return fmt.Errorf("cannot resolve effective custom domain: %w", err)
+			}
+
+			customDomain = effective
+
+			return nil
+		},
+	)
+	if err != nil {
+		return emailPresenterCfg, err
+	}
+
+	parsedBaseURL, err := url.Parse(s.baseURL)
+	if err != nil {
+		return emailPresenterCfg, fmt.Errorf("cannot parse base URL: %w", err)
+	}
+
+	baseURL := url.URL{
+		Scheme: parsedBaseURL.Scheme,
+		Host:   parsedBaseURL.Host,
+		Path:   "/trust/" + compliancePage.ID.String(),
+	}
+
+	if customDomain != nil {
+		baseURL.Host = customDomain.Domain
+		baseURL.Scheme = "https"
+		baseURL.Path = ""
+	}
+
+	emailPresenterCfg.BaseURL = baseURL.String()
+
+	if compliancePage.LogoFileID != nil {
+		if logoFile.FileKey == "" {
+			return emailPresenterCfg, nil
+		}
+
+		emailPresenterCfg.SenderCompanyLogoPath = filepath.Join("/api/files/v1/public/", logoFile.ID.String())
+		emailPresenterCfg.SenderCompanyName = organization.Name
+
+		if organization.WebsiteURL != nil {
+			emailPresenterCfg.SenderCompanyWebsiteURL = *organization.WebsiteURL
+		}
+
+		if organization.HeadquarterAddress != nil {
+			emailPresenterCfg.SenderCompanyHeadquarterAddress = *organization.HeadquarterAddress
+		}
+	}
+
+	return emailPresenterCfg, nil
+}
+
+func (s *Service) GetPortalMailingList(
+	ctx context.Context,
+	scope coredata.Scoper,
+	trustCenterID gid.GID,
+) (*coredata.MailingList, error) {
+	var mailingList *coredata.MailingList
+
+	err := s.pg.WithConn(
+		ctx,
+		func(ctx context.Context, conn pg.Querier) error {
+			trustCenter := &coredata.TrustCenter{}
+			if err := trustCenter.LoadByID(ctx, conn, scope, trustCenterID); err != nil {
+				return fmt.Errorf("cannot load trust center: %w", err)
+			}
+
+			if trustCenter.MailingListID == nil {
+				return nil
+			}
+
+			mailingList = &coredata.MailingList{}
+			if err := mailingList.LoadByID(ctx, conn, scope, *trustCenter.MailingListID); err != nil {
+				return fmt.Errorf("cannot load mailing list: %w", err)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return mailingList, nil
+}

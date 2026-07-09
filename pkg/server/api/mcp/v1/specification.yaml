@@ -8954,6 +8954,7 @@ components:
         - id
         - organization_id
         - domain
+        - managed
         - ssl_status
         - created_at
         - updated_at
@@ -8964,6 +8965,9 @@ components:
           $ref: "#/components/schemas/GID"
         domain:
           type: string
+        managed:
+          type: boolean
+          description: Whether this domain is a Probo-managed probopage subdomain
         ssl_status:
           $ref: "#/components/schemas/SSLStatus"
         ssl_expires_at:
@@ -9354,12 +9358,12 @@ components:
     CreateCustomDomainInput:
       type: object
       required:
-        - organization_id
+        - trust_center_id
         - domain
       properties:
-        organization_id:
+        trust_center_id:
           $ref: "#/components/schemas/GID"
-          description: Organization ID
+          description: Compliance page (trust center) ID
         domain:
           type: string
           description: Custom domain name
@@ -9375,11 +9379,11 @@ components:
     DeleteCustomDomainInput:
       type: object
       required:
-        - organization_id
+        - trust_center_id
       properties:
-        organization_id:
+        trust_center_id:
           $ref: "#/components/schemas/GID"
-          description: Organization ID
+          description: Compliance page (trust center) ID
 
     DeleteCustomDomainOutput:
       type: object
@@ -13727,7 +13731,7 @@ tools:
     outputSchema:
       $ref: "#/components/schemas/DeleteComplianceExternalURLOutput"
   - name: createCustomDomain
-    description: Create a custom domain for an organization
+    description: Create a custom domain for a compliance page
     hints:
       readonly: false
     inputSchema:
@@ -13735,7 +13739,7 @@ tools:
     outputSchema:
       $ref: "#/components/schemas/CreateCustomDomainOutput"
   - name: deleteCustomDomain
-    description: Delete the custom domain for an organization
+    description: Delete the custom domain of a compliance page
     hints:
       readonly: false
       destructive: true

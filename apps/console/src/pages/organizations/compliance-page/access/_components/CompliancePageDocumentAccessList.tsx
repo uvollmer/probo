@@ -13,16 +13,17 @@
 // PERFORMANCE OF THIS SOFTWARE.
 
 import type { TrustCenterDocumentAccessStatus } from "@probo/coredata";
-import { getTrustCenterDocumentAccessStatusBadgeVariant, getTrustCenterDocumentAccessStatusLabel, type TrustCenterDocumentAccessInfo } from "@probo/helpers";
+import type { CompliancePageDocumentAccessInfo } from "@probo/helpers";
+import { getCompliancePageDocumentAccessStatusBadgeVariant, getCompliancePageDocumentAccessStatusLabel } from "@probo/helpers";
 import { useTranslate } from "@probo/i18n";
 import { Badge, Button, Table, Tbody, Td, Th, Thead, Tr } from "@probo/ui";
 
 interface CompliancePageDocumentAccessListProps {
-  documentAccesses: TrustCenterDocumentAccessInfo[];
+  documentAccesses: CompliancePageDocumentAccessInfo[];
   initialStatusByID: Record<string, TrustCenterDocumentAccessStatus>;
   onGrantAll: () => void;
   onRejectOrRevokeAll: () => void;
-  onUpdateStatus: (docAccess: TrustCenterDocumentAccessInfo, status: TrustCenterDocumentAccessStatus) => void;
+  onUpdateStatus: (docAccess: CompliancePageDocumentAccessInfo, status: TrustCenterDocumentAccessStatus) => void;
 }
 
 export function CompliancePageDocumentAccessList(props: CompliancePageDocumentAccessListProps) {
@@ -102,8 +103,8 @@ export function CompliancePageDocumentAccessList(props: CompliancePageDocumentAc
                         <Td>
                           {(docAccess.persisted || docAccess.status !== "REQUESTED")
                             && (
-                              <Badge variant={getTrustCenterDocumentAccessStatusBadgeVariant(docAccess.status)}>
-                                {getTrustCenterDocumentAccessStatusLabel(docAccess.status, __)}
+                              <Badge variant={getCompliancePageDocumentAccessStatusBadgeVariant(docAccess.status)}>
+                                {getCompliancePageDocumentAccessStatusLabel(docAccess.status, __)}
                               </Badge>
                             )}
                         </Td>

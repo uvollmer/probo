@@ -26,7 +26,7 @@ export const compliancePageOverviewPageQuery = graphql`
     organization: node(id: $organizationId) {
       ... on Organization {
         compliancePage: trustCenter {
-          canGetNDA: permission(action: "core:trust-center:get-nda")
+          canGetNDA: permission(action: "compliance-portal:portal:get-nda")
         }
       }
       ...CompliancePageStatusSectionFragment

@@ -15,8 +15,6 @@
 import { FullNameRequiredError, NDASignatureRequiredError, UnAuthenticatedError } from "@probo/relay";
 import { Navigate, useLocation, useRouteError } from "react-router";
 
-import { getPathPrefix } from "#/utils/pathPrefix";
-
 import { PageError } from "./PageError";
 
 export function RootErrorBoundary() {
@@ -25,7 +23,7 @@ export function RootErrorBoundary() {
 
   const search = new URLSearchParams();
 
-  if (location.pathname !== (getPathPrefix() || "/") || location.search !== "") {
+  if (location.pathname !== "/" || location.search !== "") {
     search.set("continue", window.location.href);
   }
 

@@ -12,15 +12,15 @@ import (
 	"fmt"
 
 	"go.gearno.de/kit/log"
+	trust "go.probo.inc/probo/pkg/complianceportal/visitor"
 	"go.probo.inc/probo/pkg/coredata"
 	"go.probo.inc/probo/pkg/gid"
 	"go.probo.inc/probo/pkg/page"
 	"go.probo.inc/probo/pkg/server/api/authn"
-	"go.probo.inc/probo/pkg/server/api/compliancepage"
+	"go.probo.inc/probo/pkg/server/api/complianceportal"
 	"go.probo.inc/probo/pkg/server/api/trust/v1/schema"
 	"go.probo.inc/probo/pkg/server/api/trust/v1/types"
 	"go.probo.inc/probo/pkg/server/gqlutils"
-	"go.probo.inc/probo/pkg/trust"
 )
 
 // Framework is the resolver for the framework field.
@@ -28,13 +28,13 @@ func (r *auditResolver) Framework(ctx context.Context, obj *types.Audit) (*types
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
 
-	audit, err := trustService.Audits.Get(ctx, scope, obj.ID)
+	audit, err := trustService.GetAudit(ctx, scope, obj.ID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot load audit", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
 	}
 
-	framework, err := trustService.Frameworks.Get(ctx, scope, audit.FrameworkID)
+	framework, err := trustService.GetFramework(ctx, scope, audit.FrameworkID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot load framework", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -48,7 +48,7 @@ func (r *auditResolver) ReportFile(ctx context.Context, obj *types.Audit) (*type
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
 
-	audit, err := trustService.Audits.Get(ctx, scope, obj.ID)
+	audit, err := trustService.GetAudit(ctx, scope, obj.ID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot load audit", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -58,9 +58,9 @@ func (r *auditResolver) ReportFile(ctx context.Context, obj *types.Audit) (*type
 		return nil, nil
 	}
 
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
-	file, err := trustService.Reports.Get(ctx, scope, trustCenter.OrganizationID, *audit.ReportFileID)
+	file, err := trustService.GetReport(ctx, scope, trustCenter.OrganizationID, *audit.ReportFileID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot load report file", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -78,9 +78,9 @@ func (r *auditReportResolver) Alias(ctx context.Context, obj *types.AuditReport)
 func (r *auditReportResolver) IsUserAuthorized(ctx context.Context, obj *types.AuditReport) (bool, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
-	audit, err := trustService.Audits.GetByReportFileID(ctx, scope, obj.ID)
+	audit, err := trustService.GetAuditByReportFileID(ctx, scope, obj.ID)
 	if err != nil {
 		if errors.Is(err, coredata.ErrResourceNotFound) {
 			return false, nil
@@ -100,7 +100,7 @@ func (r *auditReportResolver) IsUserAuthorized(ctx context.Context, obj *types.A
 		return false, nil
 	}
 
-	reportAccess, err := trustService.TrustCenterAccesses.GetReportFileAccess(ctx, scope,
+	reportAccess, err := trustService.GetPortalReportFileAccess(ctx, scope,
 		trustCenter.ID,
 		identity.ID,
 		obj.ID,
@@ -125,14 +125,14 @@ func (r *auditReportResolver) IsUserAuthorized(ctx context.Context, obj *types.A
 func (r *auditReportResolver) Access(ctx context.Context, obj *types.AuditReport) (*types.DocumentAccess, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
 	identity := authn.IdentityFromContext(ctx)
 	if identity == nil {
 		return nil, nil
 	}
 
-	access, err := trustService.TrustCenterAccesses.GetReportFileAccess(
+	access, err := trustService.GetPortalReportFileAccess(
 		ctx, scope,
 		trustCenter.ID,
 		identity.ID,
@@ -165,7 +165,7 @@ func (r *complianceFrameworkResolver) Framework(ctx context.Context, obj *types.
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
 
-	framework, err := trustService.Frameworks.Get(ctx, scope, obj.FrameworkID)
+	framework, err := trustService.GetFramework(ctx, scope, obj.FrameworkID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot load framework", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -183,9 +183,9 @@ func (r *documentResolver) Alias(ctx context.Context, obj *types.Document) (*str
 func (r *documentResolver) IsUserAuthorized(ctx context.Context, obj *types.Document) (bool, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
-	document, err := trustService.Documents.Get(ctx, scope, trustCenter.OrganizationID, obj.ID)
+	document, err := trustService.GetDocument(ctx, scope, trustCenter.OrganizationID, obj.ID)
 	if err != nil {
 		if errors.Is(err, trust.ErrDocumentNotFound) || errors.Is(err, trust.ErrDocumentNotVisible) || errors.Is(err, coredata.ErrResourceNotFound) {
 			return false, gqlutils.NotFoundf(ctx, "document %q not found", obj.ID)
@@ -209,7 +209,7 @@ func (r *documentResolver) IsUserAuthorized(ctx context.Context, obj *types.Docu
 		return false, nil
 	}
 
-	documentAccess, err := trustService.TrustCenterAccesses.GetDocumentAccess(
+	documentAccess, err := trustService.GetPortalDocumentAccess(
 		ctx, scope,
 		trustCenter.ID,
 		identity.ID,
@@ -235,14 +235,14 @@ func (r *documentResolver) IsUserAuthorized(ctx context.Context, obj *types.Docu
 func (r *documentResolver) Access(ctx context.Context, obj *types.Document) (*types.DocumentAccess, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
 	identity := authn.IdentityFromContext(ctx)
 	if identity == nil {
 		return nil, nil // User is not authenticated, so no access requested
 	}
 
-	access, err := trustService.TrustCenterAccesses.GetDocumentAccess(
+	access, err := trustService.GetPortalDocumentAccess(
 		ctx, scope,
 		trustCenter.ID,
 		identity.ID,
@@ -274,7 +274,7 @@ func (r *documentResolver) Access(ctx context.Context, obj *types.Document) (*ty
 func (r *frameworkResolver) LightLogo(ctx context.Context, obj *types.Framework) (*types.File, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 
-	framework, err := r.trust.Frameworks.Get(ctx, scope, obj.ID)
+	framework, err := r.trust.GetFramework(ctx, scope, obj.ID)
 	if err != nil {
 		return nil, gqlutils.NotFoundf(ctx, "framework %q not found", obj.ID)
 	}
@@ -290,7 +290,7 @@ func (r *frameworkResolver) LightLogo(ctx context.Context, obj *types.Framework)
 func (r *frameworkResolver) DarkLogo(ctx context.Context, obj *types.Framework) (*types.File, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 
-	framework, err := r.trust.Frameworks.Get(ctx, scope, obj.ID)
+	framework, err := r.trust.GetFramework(ctx, scope, obj.ID)
 	if err != nil {
 		return nil, gqlutils.NotFoundf(ctx, "framework %q not found", obj.ID)
 	}
@@ -304,7 +304,7 @@ func (r *frameworkResolver) DarkLogo(ctx context.Context, obj *types.Framework) 
 
 // RequestAllAccesses is the resolver for the requestAllAccesses field.
 func (r *mutationResolver) RequestAllAccesses(ctx context.Context) (*types.RequestAccessesPayload, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 	trustService := r.trust
 
@@ -313,9 +313,9 @@ func (r *mutationResolver) RequestAllAccesses(ctx context.Context) (*types.Reque
 		return nil, gqlutils.Unauthenticatedf(ctx, "authentication is required to request access")
 	}
 
-	access, err := trustService.TrustCenterAccesses.Request(
+	access, err := trustService.RequestPortalAccess(
 		ctx, scope,
-		&trust.TrustCenterAccessRequest{
+		&trust.PortalAccessRequest{
 			TrustCenterID: trustCenter.ID,
 			IdentityID:    identity.ID,
 			DocumentIDs:   nil,
@@ -340,9 +340,9 @@ func (r *mutationResolver) RequestAllAccesses(ctx context.Context) (*types.Reque
 func (r *mutationResolver) ExportDocumentPDF(ctx context.Context, input types.ExportDocumentPDFInput) (*types.ExportDocumentPDFPayload, error) {
 	scope := coredata.NewScopeFromObjectID(input.DocumentID)
 	trustService := r.trust
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
-	document, err := trustService.Documents.Get(ctx, scope, trustCenter.OrganizationID, input.DocumentID)
+	document, err := trustService.GetDocument(ctx, scope, trustCenter.OrganizationID, input.DocumentID)
 	if err != nil {
 		if errors.Is(err, trust.ErrDocumentNotFound) || errors.Is(err, trust.ErrDocumentNotVisible) || errors.Is(err, coredata.ErrResourceNotFound) {
 			return nil, gqlutils.NotFoundf(ctx, "document %q not found", input.DocumentID)
@@ -358,7 +358,7 @@ func (r *mutationResolver) ExportDocumentPDF(ctx context.Context, input types.Ex
 	}
 
 	if document.TrustCenterVisibility == coredata.TrustCenterVisibilityPublic {
-		pdf, err := trustService.Documents.ExportPDFWithoutWatermark(ctx, scope, input.DocumentID)
+		pdf, err := trustService.ExportDocumentPDFWithoutWatermark(ctx, scope, input.DocumentID)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot export document PDF", log.Error(err))
 			return nil, gqlutils.Internal(ctx)
@@ -374,7 +374,7 @@ func (r *mutationResolver) ExportDocumentPDF(ctx context.Context, input types.Ex
 		return nil, gqlutils.Unauthenticated(ctx, errors.New("unauthenticated"))
 	}
 
-	documentAccess, err := trustService.TrustCenterAccesses.GetDocumentAccess(
+	documentAccess, err := trustService.GetPortalDocumentAccess(
 		ctx, scope,
 		trustCenter.ID,
 		identity.ID,
@@ -388,7 +388,7 @@ func (r *mutationResolver) ExportDocumentPDF(ctx context.Context, input types.Ex
 		return nil, gqlutils.Forbiddenf(ctx, "access denied: no permission to access this document")
 	}
 
-	pdf, err := trustService.Documents.ExportPDF(ctx, scope, input.DocumentID, identity.EmailAddress)
+	pdf, err := trustService.ExportDocumentPDF(ctx, scope, input.DocumentID, identity.EmailAddress)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot export document PDF", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -403,16 +403,16 @@ func (r *mutationResolver) ExportDocumentPDF(ctx context.Context, input types.Ex
 func (r *mutationResolver) ExportReportPDF(ctx context.Context, input types.ExportReportPDFInput) (*types.ExportReportPDFPayload, error) {
 	scope := coredata.NewScopeFromObjectID(input.ReportID)
 	trustService := r.trust
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
-	audit, err := trustService.Audits.GetByReportFileID(ctx, scope, input.ReportID)
+	audit, err := trustService.GetAuditByReportFileID(ctx, scope, input.ReportID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot load audit", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
 	}
 
 	if audit.TrustCenterVisibility == coredata.TrustCenterVisibilityPublic {
-		pdf, err := trustService.Reports.ExportPDFWithoutWatermark(ctx, scope, input.ReportID)
+		pdf, err := trustService.ExportReportPDFWithoutWatermark(ctx, scope, input.ReportID)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot export report PDF", log.Error(err))
 			return nil, gqlutils.Internal(ctx)
@@ -428,7 +428,7 @@ func (r *mutationResolver) ExportReportPDF(ctx context.Context, input types.Expo
 		return nil, gqlutils.Unauthenticatedf(ctx, "unauthenticated")
 	}
 
-	reportAccess, err := trustService.TrustCenterAccesses.GetReportFileAccess(
+	reportAccess, err := trustService.GetPortalReportFileAccess(
 		ctx, scope,
 		trustCenter.ID,
 		identity.ID,
@@ -442,7 +442,7 @@ func (r *mutationResolver) ExportReportPDF(ctx context.Context, input types.Expo
 		return nil, gqlutils.Forbiddenf(ctx, "access denied: no permission to access this report")
 	}
 
-	pdf, err := trustService.Reports.ExportPDF(ctx, scope, input.ReportID, identity.EmailAddress)
+	pdf, err := trustService.ExportReportPDF(ctx, scope, input.ReportID, identity.EmailAddress)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot export report PDF", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -455,11 +455,11 @@ func (r *mutationResolver) ExportReportPDF(ctx context.Context, input types.Expo
 
 // ExportTrustCenterFile is the resolver for the exportTrustCenterFile field.
 func (r *mutationResolver) ExportTrustCenterFile(ctx context.Context, input types.ExportTrustCenterFileInput) (*types.ExportTrustCenterFilePayload, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 	trustService := r.trust
 
-	trustCenterFile, err := trustService.TrustCenterFiles.Get(ctx, scope, trustCenter.OrganizationID, input.TrustCenterFileID)
+	trustCenterFile, err := trustService.GetPortalFile(ctx, scope, trustCenter.OrganizationID, input.TrustCenterFileID)
 	if err != nil {
 		if errors.Is(err, trust.ErrTrustCenterFileNotFound) || errors.Is(err, trust.ErrTrustCenterFileNotVisible) {
 			return nil, gqlutils.NotFoundf(ctx, "trust center file %q not found", input.TrustCenterFileID)
@@ -471,7 +471,7 @@ func (r *mutationResolver) ExportTrustCenterFile(ctx context.Context, input type
 	}
 
 	if trustCenterFile.TrustCenterVisibility == coredata.TrustCenterVisibilityPublic {
-		fileData, mimeType, err := trustService.TrustCenterFiles.ExportFileWithoutWatermark(ctx, scope, input.TrustCenterFileID)
+		fileData, mimeType, err := trustService.ExportPortalFileWithoutWatermark(ctx, scope, input.TrustCenterFileID)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot export trust center file", log.Error(err))
 			return nil, gqlutils.Internal(ctx)
@@ -487,7 +487,7 @@ func (r *mutationResolver) ExportTrustCenterFile(ctx context.Context, input type
 		return nil, gqlutils.Unauthenticatedf(ctx, "unauthenticated")
 	}
 
-	fileAccess, err := trustService.TrustCenterAccesses.GetTrustCenterFileAccess(ctx, scope,
+	fileAccess, err := trustService.GetPortalFileAccess(ctx, scope,
 		trustCenter.ID,
 		identity.ID,
 		input.TrustCenterFileID,
@@ -500,7 +500,7 @@ func (r *mutationResolver) ExportTrustCenterFile(ctx context.Context, input type
 		return nil, gqlutils.Forbiddenf(ctx, "access denied: no permission to access this file")
 	}
 
-	fileData, mimeType, err := trustService.TrustCenterFiles.ExportFile(ctx, scope, input.TrustCenterFileID, identity.EmailAddress)
+	fileData, mimeType, err := trustService.ExportPortalFile(ctx, scope, input.TrustCenterFileID, identity.EmailAddress)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot export trust center file", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -513,11 +513,11 @@ func (r *mutationResolver) ExportTrustCenterFile(ctx context.Context, input type
 
 // RequestDocumentAccess is the resolver for the requestDocumentAccess field.
 func (r *mutationResolver) RequestDocumentAccess(ctx context.Context, input types.RequestDocumentAccessInput) (*types.RequestDocumentAccessPayload, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 	trustService := r.trust
 
-	document, err := trustService.Documents.Get(ctx, scope, trustCenter.OrganizationID, input.DocumentID)
+	document, err := trustService.GetDocument(ctx, scope, trustCenter.OrganizationID, input.DocumentID)
 	if err != nil {
 		if errors.Is(err, trust.ErrDocumentNotFound) || errors.Is(err, trust.ErrDocumentNotVisible) || errors.Is(err, coredata.ErrResourceNotFound) {
 			return nil, gqlutils.NotFoundf(ctx, "document %q not found", input.DocumentID)
@@ -544,9 +544,9 @@ func (r *mutationResolver) RequestDocumentAccess(ctx context.Context, input type
 		return nil, gqlutils.Unauthenticatedf(ctx, "authentication is required to request access")
 	}
 
-	if _, err := trustService.TrustCenterAccesses.Request(
+	if _, err := trustService.RequestPortalAccess(
 		ctx, scope,
-		&trust.TrustCenterAccessRequest{
+		&trust.PortalAccessRequest{
 			TrustCenterID:      trustCenter.ID,
 			IdentityID:         identity.ID,
 			DocumentIDs:        []gid.GID{input.DocumentID},
@@ -565,11 +565,11 @@ func (r *mutationResolver) RequestDocumentAccess(ctx context.Context, input type
 
 // RequestReportAccess is the resolver for the requestReportAccess field.
 func (r *mutationResolver) RequestReportAccess(ctx context.Context, input types.RequestReportAccessInput) (*types.RequestReportAccessPayload, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 	trustService := r.trust
 
-	audit, err := trustService.Audits.GetByReportFileID(ctx, scope, input.ReportID)
+	audit, err := trustService.GetAuditByReportFileID(ctx, scope, input.ReportID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot load audit", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -587,9 +587,9 @@ func (r *mutationResolver) RequestReportAccess(ctx context.Context, input types.
 		return nil, gqlutils.Unauthenticatedf(ctx, "authentication is required to request access")
 	}
 
-	if _, err := trustService.TrustCenterAccesses.Request(
+	if _, err := trustService.RequestPortalAccess(
 		ctx, scope,
-		&trust.TrustCenterAccessRequest{
+		&trust.PortalAccessRequest{
 			TrustCenterID:      trustCenter.ID,
 			IdentityID:         identity.ID,
 			DocumentIDs:        []gid.GID{},
@@ -608,11 +608,11 @@ func (r *mutationResolver) RequestReportAccess(ctx context.Context, input types.
 
 // RequestTrustCenterFileAccess is the resolver for the requestTrustCenterFileAccess field.
 func (r *mutationResolver) RequestTrustCenterFileAccess(ctx context.Context, input types.RequestTrustCenterFileAccessInput) (*types.RequestFileAccessPayload, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 	trustService := r.trust
 
-	trustCenterFile, err := trustService.TrustCenterFiles.Get(ctx, scope, trustCenter.OrganizationID, input.TrustCenterFileID)
+	trustCenterFile, err := trustService.GetPortalFile(ctx, scope, trustCenter.OrganizationID, input.TrustCenterFileID)
 	if err != nil {
 		if errors.Is(err, trust.ErrTrustCenterFileNotFound) || errors.Is(err, trust.ErrTrustCenterFileNotVisible) {
 			return nil, gqlutils.NotFoundf(ctx, "trust center file %q not found", input.TrustCenterFileID)
@@ -635,9 +635,9 @@ func (r *mutationResolver) RequestTrustCenterFileAccess(ctx context.Context, inp
 		return nil, gqlutils.Unauthenticatedf(ctx, "authentication is required to request access")
 	}
 
-	if _, err := trustService.TrustCenterAccesses.Request(
+	if _, err := trustService.RequestPortalAccess(
 		ctx, scope,
-		&trust.TrustCenterAccessRequest{
+		&trust.PortalAccessRequest{
 			TrustCenterID:      trustCenter.ID,
 			IdentityID:         identity.ID,
 			DocumentIDs:        []gid.GID{},
@@ -661,7 +661,7 @@ func (r *subprocessorConnectionResolver) TotalCount(ctx context.Context, obj *ty
 
 	switch obj.Resolver.(type) {
 	case *trustCenterResolver:
-		count, err := trustService.ThirdParties.CountForTrustCenterId(ctx, scope, obj.ParentID)
+		count, err := trustService.CountThirdPartiesForPortalID(ctx, scope, obj.ParentID)
 		if err != nil {
 			r.logger.ErrorCtx(ctx, "cannot count subprocessors", log.Error(err))
 			return 0, gqlutils.Internal(ctx)
@@ -677,7 +677,7 @@ func (r *subprocessorConnectionResolver) TotalCount(ctx context.Context, obj *ty
 
 // Logo is the resolver for the logo field.
 func (r *trustCenterResolver) Logo(ctx context.Context, obj *types.TrustCenter) (*types.File, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	if trustCenter.LogoFileID == nil {
 		return nil, nil
 	}
@@ -687,7 +687,7 @@ func (r *trustCenterResolver) Logo(ctx context.Context, obj *types.TrustCenter) 
 
 // DarkLogo is the resolver for the darkLogo field.
 func (r *trustCenterResolver) DarkLogo(ctx context.Context, obj *types.TrustCenter) (*types.File, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	if trustCenter.DarkLogoFileID == nil {
 		return nil, nil
 	}
@@ -697,7 +697,7 @@ func (r *trustCenterResolver) DarkLogo(ctx context.Context, obj *types.TrustCent
 
 // NonDisclosureAgreement is the resolver for the nonDisclosureAgreement field.
 func (r *trustCenterResolver) NonDisclosureAgreement(ctx context.Context, obj *types.TrustCenter) (*types.NonDisclosureAgreement, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	if trustCenter.NonDisclosureAgreementFileID == nil {
 		return nil, nil
 	}
@@ -705,7 +705,7 @@ func (r *trustCenterResolver) NonDisclosureAgreement(ctx context.Context, obj *t
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
 
-	file, err := trustService.TrustCenters.GetNDAFile(ctx, scope, obj.ID)
+	file, err := trustService.GetPortalNDAFile(ctx, scope, obj.ID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot load NDA file", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -720,7 +720,7 @@ func (r *trustCenterResolver) NonDisclosureAgreement(ctx context.Context, obj *t
 
 // ViewerSubscription is the resolver for the viewerSubscription field.
 func (r *trustCenterResolver) ViewerSubscription(ctx context.Context, obj *types.TrustCenter) (*types.MailingListSubscriber, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	if trustCenter.MailingListID == nil {
 		return nil, nil
 	}
@@ -758,7 +758,7 @@ func (r *trustCenterResolver) Documents(ctx context.Context, obj *types.TrustCen
 	}
 	cursor := types.NewCursor(first, after, last, before, pageOrderBy)
 
-	documentPage, err := trustService.Documents.ListForOrganizationId(ctx, scope, obj.Organization.ID, cursor)
+	documentPage, err := trustService.ListDocumentsForOrganizationID(ctx, scope, obj.Organization.ID, cursor)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot list public documents", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -777,7 +777,7 @@ func (r *trustCenterResolver) Audits(ctx context.Context, obj *types.TrustCenter
 	}
 	cursor := types.NewCursor(first, after, last, before, pageOrderBy)
 
-	auditPage, err := trustService.Audits.ListForOrganizationId(ctx, scope, obj.Organization.ID, cursor)
+	auditPage, err := trustService.ListAuditsForOrganizationID(ctx, scope, obj.Organization.ID, cursor)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot list public audits", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -796,7 +796,7 @@ func (r *trustCenterResolver) Subprocessors(ctx context.Context, obj *types.Trus
 	}
 	cursor := types.NewCursor(first, after, last, before, pageOrderBy)
 
-	thirdPartyPage, err := trustService.ThirdParties.ListForOrganizationId(ctx, scope, obj.Organization.ID, cursor)
+	thirdPartyPage, err := trustService.ListThirdPartiesForOrganizationID(ctx, scope, obj.Organization.ID, cursor)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot list subprocessors", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -815,7 +815,7 @@ func (r *trustCenterResolver) References(ctx context.Context, obj *types.TrustCe
 	}
 	cursor := types.NewCursor(first, after, last, before, pageOrderBy)
 
-	referencePage, err := trustService.TrustCenterReferences.ListForTrustCenterID(ctx, scope, obj.ID, cursor)
+	referencePage, err := trustService.ListPortalReferencesForPortalID(ctx, scope, obj.ID, cursor)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot list public trust center references", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -841,7 +841,7 @@ func (r *trustCenterResolver) TrustCenterFiles(ctx context.Context, obj *types.T
 		),
 	)
 
-	trustCenterFilePage, err := trustService.TrustCenterFiles.ListForOrganizationId(ctx, scope, obj.Organization.ID, cursor, filter)
+	trustCenterFilePage, err := trustService.ListPortalFilesForOrganizationID(ctx, scope, obj.Organization.ID, cursor, filter)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot list public trust center files", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -860,7 +860,7 @@ func (r *trustCenterResolver) ComplianceFrameworks(ctx context.Context, obj *typ
 	}
 	cursor := types.NewCursor(first, after, last, before, pageOrderBy)
 
-	cfPage, err := trustService.ComplianceFrameworks.ListByTrustCenterID(ctx, scope, obj.ID, cursor)
+	cfPage, err := trustService.ListComplianceFrameworksByPortalID(ctx, scope, obj.ID, cursor)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot list compliance frameworks", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -879,7 +879,7 @@ func (r *trustCenterResolver) ExternalUrls(ctx context.Context, obj *types.Trust
 	}
 	cursor := types.NewCursor(first, after, last, before, pageOrderBy)
 
-	result, err := trustService.ComplianceExternalURLs.ListForTrustCenterID(ctx, scope, obj.ID, cursor)
+	result, err := trustService.ListComplianceExternalURLsForPortalID(ctx, scope, obj.ID, cursor)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot list compliance external URLs", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -893,7 +893,7 @@ func (r *trustCenterResolver) Updates(ctx context.Context, obj *types.TrustCente
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
 
-	tc, err := trustService.TrustCenters.Get(ctx, scope, obj.ID)
+	tc, err := trustService.GetPortal(ctx, scope, obj.ID)
 	if err != nil {
 		r.logger.ErrorCtx(ctx, "cannot load trust center", log.Error(err))
 		return nil, gqlutils.Internal(ctx)
@@ -927,9 +927,9 @@ func (r *trustCenterFileResolver) Alias(ctx context.Context, obj *types.TrustCen
 func (r *trustCenterFileResolver) IsUserAuthorized(ctx context.Context, obj *types.TrustCenterFile) (bool, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
-	trustCenterFile, err := trustService.TrustCenterFiles.Get(ctx, scope, trustCenter.OrganizationID, obj.ID)
+	trustCenterFile, err := trustService.GetPortalFile(ctx, scope, trustCenter.OrganizationID, obj.ID)
 	if err != nil {
 		if errors.Is(err, trust.ErrTrustCenterFileNotFound) || errors.Is(err, trust.ErrTrustCenterFileNotVisible) {
 			return false, gqlutils.NotFoundf(ctx, "trust center file %q not found", obj.ID)
@@ -949,7 +949,7 @@ func (r *trustCenterFileResolver) IsUserAuthorized(ctx context.Context, obj *typ
 		return false, nil
 	}
 
-	fileAccess, err := trustService.TrustCenterAccesses.GetTrustCenterFileAccess(ctx, scope,
+	fileAccess, err := trustService.GetPortalFileAccess(ctx, scope,
 		trustCenter.ID,
 		identity.ID,
 		obj.ID,
@@ -974,14 +974,14 @@ func (r *trustCenterFileResolver) IsUserAuthorized(ctx context.Context, obj *typ
 func (r *trustCenterFileResolver) Access(ctx context.Context, obj *types.TrustCenterFile) (*types.DocumentAccess, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 	trustService := r.trust
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
 	identity := authn.IdentityFromContext(ctx)
 	if identity == nil {
 		return nil, nil // User is not authenticated, so no access requested
 	}
 
-	access, err := trustService.TrustCenterAccesses.GetTrustCenterFileAccess(
+	access, err := trustService.GetPortalFileAccess(
 		ctx, scope,
 		trustCenter.ID,
 		identity.ID,
@@ -1013,7 +1013,7 @@ func (r *trustCenterFileResolver) Access(ctx context.Context, obj *types.TrustCe
 func (r *trustCenterReferenceResolver) Logo(ctx context.Context, obj *types.TrustCenterReference) (*types.File, error) {
 	scope := coredata.NewScopeFromObjectID(obj.ID)
 
-	reference, err := r.trust.TrustCenterReferences.Get(ctx, scope, obj.ID)
+	reference, err := r.trust.GetPortalReference(ctx, scope, obj.ID)
 	if err != nil {
 		return nil, gqlutils.NotFoundf(ctx, "trust center reference %q not found", obj.ID)
 	}

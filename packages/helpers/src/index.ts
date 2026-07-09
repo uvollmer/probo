@@ -80,8 +80,13 @@ export {
     getTrustCenterVisibilityVariant,
     getTrustCenterVisibilityLabel,
     getTrustCenterVisibilityOptions,
+    getTrustCenterVisibilityVariant as getCompliancePageVisibilityVariant,
+    getTrustCenterVisibilityLabel as getCompliancePageVisibilityLabel,
+    getTrustCenterVisibilityOptions as getCompliancePageVisibilityOptions,
     trustCenterVisibilities,
+    trustCenterVisibilities as compliancePageVisibilities,
     type TrustCenterVisibility,
+    type TrustCenterVisibility as CompliancePageVisibility,
 } from "./trustCenterVisibility";
 export { promisifyMutation } from "./relay";
 export { fileType, fileSize } from "./file";
@@ -117,7 +122,10 @@ export { Role, roles, getAssignableRoles } from "./roles";
 export {
   getTrustCenterDocumentAccessStatusBadgeVariant,
   getTrustCenterDocumentAccessStatusLabel,
+  getTrustCenterDocumentAccessStatusBadgeVariant as getCompliancePageDocumentAccessStatusBadgeVariant,
+  getTrustCenterDocumentAccessStatusLabel as getCompliancePageDocumentAccessStatusLabel,
   type TrustCenterDocumentAccessInfo,
+  type TrustCenterDocumentAccessInfo as CompliancePageDocumentAccessInfo,
 } from "./trustCenterDocumentAccess";
 export {
   getRightsRequestTypeLabel,

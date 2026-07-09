@@ -26,7 +26,7 @@ export const compliancePageFilesPageQuery = graphql`
   query CompliancePageFilesPageQuery($organizationId: ID!) {
     organization: node(id: $organizationId) {
       ... on Organization {
-        canCreateTrustCenterFile: permission(action: "core:trust-center-file:create")
+        canCreateCompliancePageFile: permission(action: "compliance-portal:portal-file:create")
       }
       ...CompliancePageFileListFragment
     }
@@ -46,7 +46,7 @@ export function CompliancePageFilesPage(props: {
 
   const filesConnectionId = ConnectionHandler.getConnectionID(
     organizationId,
-    "CompliancePageFileList_trustCenterFiles",
+    "CompliancePageFileList_compliancePageFiles",
   );
 
   return (
@@ -58,7 +58,7 @@ export function CompliancePageFilesPage(props: {
             {__("Upload and manage files for your compliance page")}
           </p>
         </div>
-        {organization.canCreateTrustCenterFile && (
+        {organization.canCreateCompliancePageFile && (
           <Button
             icon={IconPlusLarge}
             onClick={() => createDialogRef.current?.open()}

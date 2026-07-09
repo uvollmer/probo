@@ -14,7 +14,7 @@ import (
 	"go.probo.inc/probo/pkg/coredata"
 	"go.probo.inc/probo/pkg/esign"
 	"go.probo.inc/probo/pkg/server/api/authn"
-	"go.probo.inc/probo/pkg/server/api/compliancepage"
+	"go.probo.inc/probo/pkg/server/api/complianceportal"
 	"go.probo.inc/probo/pkg/server/api/trust/v1/schema"
 	"go.probo.inc/probo/pkg/server/api/trust/v1/types"
 	"go.probo.inc/probo/pkg/server/gqlutils"
@@ -84,13 +84,13 @@ func (r *mutationResolver) RecordSigningEvent(ctx context.Context, input types.R
 
 // FileURL is the resolver for the fileUrl field.
 func (r *nonDisclosureAgreementResolver) FileURL(ctx context.Context, obj *types.NonDisclosureAgreement) (string, error) {
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 
 	if identity := authn.IdentityFromContext(ctx); identity != nil && r.esign != nil {
 		scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 		trustService := r.trust
 
-		access, err := trustService.TrustCenterAccesses.GetAccess(ctx, scope, trustCenter.ID, identity.ID)
+		access, err := trustService.GetPortalAccess(ctx, scope, trustCenter.ID, identity.ID)
 		if err == nil && access.ElectronicSignatureID != nil {
 			fileURL, err := r.esign.GenerateSignatureFileURL(ctx, *access.ElectronicSignatureID, 15*time.Minute)
 			if err == nil {
@@ -104,7 +104,7 @@ func (r *nonDisclosureAgreementResolver) FileURL(ctx context.Context, obj *types
 	scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 	trustService := r.trust
 
-	fileURL, err := trustService.TrustCenters.GenerateNDAFileURL(ctx, scope, trustCenter.ID, 15*time.Minute)
+	fileURL, err := trustService.GeneratePortalNDAFileURL(ctx, scope, trustCenter.ID, 15*time.Minute)
 	if err != nil {
 		return "", gqlutils.Internal(ctx)
 	}
@@ -119,11 +119,11 @@ func (r *nonDisclosureAgreementResolver) ViewerSignature(ctx context.Context, ob
 		return nil, nil
 	}
 
-	trustCenter := compliancepage.CompliancePageFromContext(ctx)
+	trustCenter := complianceportal.CompliancePageFromContext(ctx)
 	scope := coredata.NewScopeFromObjectID(trustCenter.ID)
 	trustService := r.trust
 
-	access, err := trustService.TrustCenterAccesses.GetAccess(ctx, scope, trustCenter.ID, identity.ID)
+	access, err := trustService.GetPortalAccess(ctx, scope, trustCenter.ID, identity.ID)
 	if err != nil {
 		return nil, nil
 	}
