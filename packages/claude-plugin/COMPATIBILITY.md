@@ -12,7 +12,7 @@ MCP plus Agent Skills–compatible `SKILL.md` files.
 | Skills (`SKILL.md`) | ✅ `skills/` | ✅ `skills/` via `.codex-plugin` | ✅ `.opencode/skills/` or `.claude/skills/` | ✅ Copy/symlink to `.cursor/skills/` |
 | Commands | ✅ `commands/` → `/probo:…` | ⚠️ Use skills instead | ⚠️ Native `skill` tool | ❌ Use skill or rules |
 | Plugin manifest | `.claude-plugin/` | `.codex-plugin/` | Discovery paths (no manifest) | No native manifest |
-| Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | — | — |
+| Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` (repo root or package) | — | — |
 
 ## Probo MCP (all agents)
 
@@ -37,7 +37,19 @@ claude mcp login probo   # or /mcp in session
 
 ### Codex
 
-Add the Codex marketplace (catalog lives at `.agents/plugins/marketplace.json`):
+**From the monorepo or GitHub** (repo-root catalog at
+`.agents/plugins/marketplace.json`):
+
+```bash
+codex plugin marketplace add getprobo/probo
+# or, from a local clone:
+codex plugin marketplace add .
+codex plugin install probo@probo
+codex mcp login probo
+```
+
+**From the package directory** (catalog at
+`packages/claude-plugin/.agents/plugins/marketplace.json`):
 
 ```bash
 codex plugin marketplace add ./packages/claude-plugin
@@ -52,8 +64,9 @@ codex plugin install ./packages/claude-plugin
 codex mcp login probo
 ```
 
-Skills load from `./skills/` via `.codex-plugin/plugin.json`. The marketplace
-`source.path` is `./` (plugin package root).
+Skills load from `./skills/` via `.codex-plugin/plugin.json`. The repo-root
+marketplace `source.path` is `./packages/claude-plugin`; the package-level
+catalog uses `./` (plugin package root).
 
 ### OpenCode
 
@@ -108,7 +121,14 @@ directory is discovered, regardless of which agent loads it.
   .claude-plugin/plugin.json         # Claude Code manifest
   .claude-plugin/marketplace.json    # Claude marketplace (npm)
   .codex-plugin/plugin.json          # Codex manifest
-  .agents/plugins/marketplace.json   # Codex marketplace (local)
+  .agents/plugins/marketplace.json   # Codex marketplace (package-local)
+```
+
+Repo root (monorepo / `getprobo/probo` Git installs):
+
+```
+.agents/plugins/marketplace.json     # Codex marketplace → packages/claude-plugin
+```
   .mcp.json                          # Shared MCP wiring
   skills/                            # Shared skills (all agents)
   commands/                          # Claude Code commands only

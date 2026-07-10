@@ -29,10 +29,16 @@ Code's distribution model.
 ## Directory structure
 
 ```
+.agents/plugins/marketplace.json   # repo root — Codex catalog for getprobo/probo
+
 packages/claude-plugin/
   .claude-plugin/
     plugin.json           # Plugin manifest (required)
     marketplace.json      # Marketplace catalog for npm distribution
+  .agents/plugins/
+    marketplace.json      # Codex catalog when marketplace root is the package
+  .codex-plugin/
+    plugin.json           # Codex manifest
   .mcp.json               # Probo MCP server wiring
   skills/
     <skill-name>/

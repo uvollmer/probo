@@ -8,8 +8,8 @@ OAuth 2.0.
 **Supported agents:** Claude Code, Codex, OpenCode, Cursor (MCP + skills).
 
 Marketplace catalogs: `.claude-plugin/marketplace.json` (Claude Code),
-`.agents/plugins/marketplace.json` (Codex). See
-[COMPATIBILITY.md](./COMPATIBILITY.md).
+`.agents/plugins/marketplace.json` at the repo root or under
+`packages/claude-plugin/` (Codex). See [COMPATIBILITY.md](./COMPATIBILITY.md).
 
 ## Install
 

@@ -7,7 +7,9 @@ this file.
 
 ### Added
 
-- Codex marketplace at `.agents/plugins/marketplace.json`
+- Repo-root Codex marketplace at `.agents/plugins/marketplace.json` for
+  `getprobo/probo` Git installs
+- Codex marketplace at `packages/claude-plugin/.agents/plugins/marketplace.json`
 - Multi-agent support: `.codex-plugin/plugin.json` and `COMPATIBILITY.md`
 - `skills/access-review/SKILL.md` as canonical workflow (Codex, OpenCode, Cursor)
 - Portable relative `references/` paths (no `${CLAUDE_PLUGIN_ROOT}` in skills)
