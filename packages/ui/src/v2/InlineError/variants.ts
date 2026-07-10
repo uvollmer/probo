@@ -12,18 +12,30 @@
 // OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 // PERFORMANCE OF THIS SOFTWARE.
 
-import { Environment, Network, RecordSource, Store } from "relay-runtime";
+import { tv } from "tailwind-variants/lite";
 
-import { buildEndpoint } from "#/lib/http/endpoint";
-import { makeFetchQuery } from "#/lib/relay/fetch";
-
-const store = new Store(new RecordSource(), {
-  queryCacheExpirationTime: 1 * 60 * 1000,
-  gcReleaseBufferSize: 20,
-});
-
-export const environment = new Environment({
-  configName: "complianceportal",
-  network: Network.create(makeFetchQuery(buildEndpoint())),
-  store,
+// Localized inline error for section / card / list / row load failures (Figma
+// "Error message / Inline").
+//   vertical    centered column for contained spaces (sections, cards, panels)
+//   horizontal  compact row for list / table rows
+export const inlineError = tv({
+  slots: {
+    root: "flex w-full gap-2",
+    message: "",
+  },
+  variants: {
+    layout: {
+      vertical: {
+        root: "flex-col items-center justify-center text-center",
+        message: "w-full",
+      },
+      horizontal: {
+        root: "flex-row items-center",
+        message: "flex-1 text-left",
+      },
+    },
+  },
+  defaultVariants: {
+    layout: "vertical",
+  },
 });

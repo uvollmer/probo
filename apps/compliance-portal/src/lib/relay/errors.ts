@@ -12,18 +12,14 @@
 // OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 // PERFORMANCE OF THIS SOFTWARE.
 
-import { Environment, Network, RecordSource, Store } from "relay-runtime";
-
-import { buildEndpoint } from "#/lib/http/endpoint";
-import { makeFetchQuery } from "#/lib/relay/fetch";
-
-const store = new Store(new RecordSource(), {
-  queryCacheExpirationTime: 1 * 60 * 1000,
-  gcReleaseBufferSize: 20,
-});
-
-export const environment = new Environment({
-  configName: "complianceportal",
-  network: Network.create(makeFetchQuery(buildEndpoint())),
-  store,
-});
+// Thrown when a fetched `node(id:)` resolves to a type other than the one the
+// view expects (e.g. `node.__typename !== "MailingListUpdate"`). Treated as a
+// not-found (404) by the error boundaries. Prefer this over a bare
+// `throw new Error(...)` so the boundary can render the dedicated 404 state.
+export class NotFoundError extends Error {
+  constructor(message?: string) {
+    super(message ?? "NOT_FOUND");
+    this.name = "NotFoundError";
+    Object.setPrototypeOf(this, NotFoundError.prototype);
+  }
+}

@@ -12,18 +12,21 @@
 // OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 // PERFORMANCE OF THIS SOFTWARE.
 
-import { Environment, Network, RecordSource, Store } from "relay-runtime";
+import { useRouteError } from "react-router";
 
-import { buildEndpoint } from "#/lib/http/endpoint";
-import { makeFetchQuery } from "#/lib/relay/fetch";
+import { GlobalError } from "./GlobalError";
 
-const store = new Store(new RecordSource(), {
-  queryCacheExpirationTime: 1 * 60 * 1000,
-  gcReleaseBufferSize: 20,
-});
+// Root route boundary: a failure in the layout (or anything above the page
+// boundaries) takes down the whole tree, so it renders a standalone full-page
+// error without the app chrome.
+export function RootErrorBoundary() {
+  const error = useRouteError();
 
-export const environment = new Environment({
-  configName: "complianceportal",
-  network: Network.create(makeFetchQuery(buildEndpoint())),
-  store,
-});
+  return (
+    <GlobalError
+      error={error}
+      fullPage
+      onRetry={() => window.location.reload()}
+    />
+  );
+}

@@ -12,18 +12,19 @@
 // OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 // PERFORMANCE OF THIS SOFTWARE.
 
-import { Environment, Network, RecordSource, Store } from "relay-runtime";
+import { useRouteError } from "react-router";
 
-import { buildEndpoint } from "#/lib/http/endpoint";
-import { makeFetchQuery } from "#/lib/relay/fetch";
+import { GlobalError } from "./GlobalError";
 
-const store = new Store(new RecordSource(), {
-  queryCacheExpirationTime: 1 * 60 * 1000,
-  gcReleaseBufferSize: 20,
-});
+// Child-route boundary: a page failure is contained to the layout's Outlet, so
+// the error renders inside the app chrome (TopBar + footer survive).
+export function PageErrorBoundary() {
+  const error = useRouteError();
 
-export const environment = new Environment({
-  configName: "complianceportal",
-  network: Network.create(makeFetchQuery(buildEndpoint())),
-  store,
-});
+  return (
+    <GlobalError
+      error={error}
+      onRetry={() => window.location.reload()}
+    />
+  );
+}
