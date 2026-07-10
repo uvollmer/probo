@@ -7,6 +7,7 @@ this file.
 
 ### Added
 
+- Codex marketplace at `.agents/plugins/marketplace.json`
 - Multi-agent support: `.codex-plugin/plugin.json` and `COMPATIBILITY.md`
 - `skills/access-review/SKILL.md` as canonical workflow (Codex, OpenCode, Cursor)
 - Portable relative `references/` paths (no `${CLAUDE_PLUGIN_ROOT}` in skills)

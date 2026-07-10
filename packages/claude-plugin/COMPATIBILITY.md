@@ -12,6 +12,7 @@ MCP plus Agent Skills–compatible `SKILL.md` files.
 | Skills (`SKILL.md`) | ✅ `skills/` | ✅ `skills/` via `.codex-plugin` | ✅ `.opencode/skills/` or `.claude/skills/` | ✅ Copy/symlink to `.cursor/skills/` |
 | Commands | ✅ `commands/` → `/probo:…` | ⚠️ Use skills instead | ⚠️ Native `skill` tool | ❌ Use skill or rules |
 | Plugin manifest | `.claude-plugin/` | `.codex-plugin/` | Discovery paths (no manifest) | No native manifest |
+| Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | — | — |
 
 ## Probo MCP (all agents)
 
@@ -36,17 +37,23 @@ claude mcp login probo   # or /mcp in session
 
 ### Codex
 
-Install the plugin directory (contains `.codex-plugin/plugin.json`):
+Add the Codex marketplace (catalog lives at `.agents/plugins/marketplace.json`):
 
 ```bash
-codex plugin install /path/to/packages/claude-plugin
+codex plugin marketplace add ./packages/claude-plugin
+codex plugin install probo@probo
 codex mcp login probo
 ```
 
-Or add MCP manually in `~/.codex/config.toml` pointing at
-`${PROBO_BASE_URL}/mcp/v1`, then `codex mcp login probo`.
+Or install the plugin directory directly:
 
-Skills load from `./skills/` automatically via the Codex manifest.
+```bash
+codex plugin install ./packages/claude-plugin
+codex mcp login probo
+```
+
+Skills load from `./skills/` via `.codex-plugin/plugin.json`. The marketplace
+`source.path` is `./` (plugin package root).
 
 ### OpenCode
 
@@ -98,10 +105,11 @@ directory is discovered, regardless of which agent loads it.
 
 ```
 @probo/claude-plugin/
-  .claude-plugin/plugin.json    # Claude Code
-  .claude-plugin/marketplace.json
-  .codex-plugin/plugin.json     # Codex
-  .mcp.json                     # Shared MCP wiring
-  skills/                       # Shared skills (all agents)
-  commands/                     # Claude Code commands only
+  .claude-plugin/plugin.json         # Claude Code manifest
+  .claude-plugin/marketplace.json    # Claude marketplace (npm)
+  .codex-plugin/plugin.json          # Codex manifest
+  .agents/plugins/marketplace.json   # Codex marketplace (local)
+  .mcp.json                          # Shared MCP wiring
+  skills/                            # Shared skills (all agents)
+  commands/                          # Claude Code commands only
 ```

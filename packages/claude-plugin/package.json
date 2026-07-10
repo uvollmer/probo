@@ -15,6 +15,7 @@
   "files": [
     ".claude-plugin",
     ".codex-plugin",
+    ".agents",
     "skills",
     "commands",
     "agents",

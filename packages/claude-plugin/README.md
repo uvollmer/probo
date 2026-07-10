@@ -5,8 +5,11 @@ Skills–compatible instructions and wires agents to the [Probo MCP
 API](https://github.com/getprobo/probo/tree/main/pkg/server/api/mcp/v1) via
 OAuth 2.0.
 
-**Supported agents:** Claude Code, Codex, OpenCode, Cursor (MCP + skills). See
-[COMPATIBILITY.md](./COMPATIBILITY.md) for per-agent setup.
+**Supported agents:** Claude Code, Codex, OpenCode, Cursor (MCP + skills).
+
+Marketplace catalogs: `.claude-plugin/marketplace.json` (Claude Code),
+`.agents/plugins/marketplace.json` (Codex). See
+[COMPATIBILITY.md](./COMPATIBILITY.md).
 
 ## Install
 
