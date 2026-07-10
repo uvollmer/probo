@@ -10,15 +10,19 @@ A **Claude plugin** (the installable unit) bundling:
 
 | Component | Role |
 | --- | --- |
-| `.mcp.json` | Connects Claude to Probo (`/mcp/v1`, bearer auth) |
-| `skills/` | Compliance workflow instructions Claude can invoke |
-| `commands/` | Optional legacy slash commands |
+| `.mcp.json` | Connects Claude to Probo (`/mcp/v1`, OAuth 2.0) |
+| `skills/` | Workflow instructions and reference docs |
+| `commands/` | Explicit slash commands (e.g. `access-review`) |
 | `agents/` | Optional specialized subagents |
 | `hooks/` | Optional event automation |
 
-Individual capabilities inside the plugin are **skills** (for example
-`/probo:open-source-compliance`). The npm package name stays
-`@probo/claude-plugin` because that matches Claude Code's distribution model.
+Individual capabilities are namespaced under `probo`:
+
+- Skills: `/probo:<skill-name>` (e.g. `/probo:open-source-compliance`)
+- Commands: `/probo:<command-name>` (e.g. `/probo:access-review`)
+
+The npm package name stays `@probo/claude-plugin` because that matches Claude
+Code's distribution model.
 
 ## Directory structure
 
@@ -83,6 +87,18 @@ claude --plugin-dir ./packages/claude-plugin
 
 Skills must be self-contained — npm installs do not include `contrib/claude/`
 from the monorepo.
+
+## Adding a command
+
+Use commands for explicit, user-invoked workflows (especially MCP writes).
+Pair a thin `commands/<name>.md` with `skills/<name>/references/` for rubrics
+and tool docs the command loads via `${CLAUDE_PLUGIN_ROOT}`.
+
+1. Create `commands/<name>.md` with frontmatter (`description`,
+   `argument-hint`, `disable-model-invocation: true` when writes are involved).
+2. Add reference docs under `skills/<name>/references/`.
+3. Register paths in `scripts/validate.mjs`.
+4. Test: `/probo:<name> <args>` after `claude --plugin-dir ./packages/claude-plugin`.
 
 ## Distribution
 

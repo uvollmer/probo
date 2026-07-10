@@ -21,7 +21,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const requiredPaths = [
   ".claude-plugin/plugin.json",
   ".mcp.json",
+  "commands/access-review.md",
   "skills/open-source-compliance/SKILL.md",
+  "skills/access-review/references/mcp-tools.md",
+  "skills/access-review/references/decision-rubric.md",
+  "skills/access-review/references/notes-format.md",
 ];
 
 let failed = false;

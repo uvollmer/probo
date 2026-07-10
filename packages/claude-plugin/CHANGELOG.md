@@ -5,6 +5,11 @@ this file.
 
 ## Unreleased
 
+### Added
+
+- `access-review` command for semi-automated campaign review via Probo MCP
+- Reference docs for MCP tools, decision rubric, and `.probo/access-reviews/` notes format
+
 ### Changed
 
 - Refocus the plugin on open-source compliance workflows powered by Probo MCP

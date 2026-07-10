@@ -56,12 +56,13 @@ claude --plugin-dir ./packages/claude-plugin
 | --- | --- | --- |
 | MCP | `.mcp.json` | Probo API connection |
 | Skills | `skills/` | Compliance workflows |
-| Commands | `commands/` | Reserved |
+| Commands | `commands/` | `access-review` — semi-auto campaign review |
 | Agents | `agents/` | Reserved |
 | Hooks | `hooks/` | Reserved |
 
-Skills are namespaced as `/probo:<skill-name>` (for example
-`/probo:open-source-compliance`).
+Skills: `/probo:<skill-name>` (e.g. `/probo:open-source-compliance`).
+
+Commands: `/probo:<command-name>` (e.g. `/probo:access-review Q3 GitHub review`).
 
 ## Adding content
 
