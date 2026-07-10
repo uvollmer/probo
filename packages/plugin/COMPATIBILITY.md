@@ -1,6 +1,6 @@
 # Multi-agent compatibility
 
-`@probo/claude-plugin` targets **Claude Code**, **Codex**, **OpenCode**, and
+`@probo/plugin` targets **Claude Code**, **Codex**, **OpenCode**, and
 other MCP-capable agents (including **Cursor**). The portable core is Probo
 MCP plus Agent Skills–compatible `SKILL.md` files.
 
@@ -29,7 +29,7 @@ static bearer token — OAuth discovery uses
 ### Claude Code
 
 ```bash
-claude plugin marketplace add ./packages/claude-plugin/.claude-plugin
+claude plugin marketplace add ./packages/plugin/.claude-plugin
 claude plugin install probo@probo
 claude mcp login probo   # or /mcp in session
 /probo:access-review Q3 GitHub review
@@ -49,10 +49,10 @@ codex mcp login probo
 ```
 
 **From the package directory** (catalog at
-`packages/claude-plugin/.agents/plugins/marketplace.json`):
+`packages/plugin/.agents/plugins/marketplace.json`):
 
 ```bash
-codex plugin marketplace add ./packages/claude-plugin
+codex plugin marketplace add ./packages/plugin
 codex plugin install probo@probo
 codex mcp login probo
 ```
@@ -60,12 +60,12 @@ codex mcp login probo
 Or install the plugin directory directly:
 
 ```bash
-codex plugin install ./packages/claude-plugin
+codex plugin install ./packages/plugin
 codex mcp login probo
 ```
 
 Skills load from `./skills/` via `.codex-plugin/plugin.json`. The repo-root
-marketplace `source.path` is `./packages/claude-plugin`; the package-level
+marketplace `source.path` is `./packages/plugin`; the package-level
 catalog uses `./` (plugin package root).
 
 ### OpenCode
@@ -77,8 +77,8 @@ OpenCode discovers skills at `.opencode/skills/`, `.claude/skills/`, and
 
 ```bash
 mkdir -p .opencode/skills
-ln -s ../../packages/claude-plugin/skills/access-review .opencode/skills/access-review
-ln -s ../../packages/claude-plugin/skills/open-source-compliance .opencode/skills/open-source-compliance
+ln -s ../../packages/plugin/skills/access-review .opencode/skills/access-review
+ln -s ../../packages/plugin/skills/open-source-compliance .opencode/skills/open-source-compliance
 ```
 
 **Option B — Claude Code bridge:** install
@@ -96,7 +96,7 @@ authenticate. Invoke via the native `skill` tool (`access-review`).
 
 ```bash
 mkdir -p .cursor/skills
-cp -r packages/claude-plugin/skills/access-review .cursor/skills/
+cp -r packages/plugin/skills/access-review .cursor/skills/
 ```
 
 Reference the skill in chat or add a Cursor rule pointing at the skill.
@@ -117,7 +117,7 @@ directory is discovered, regardless of which agent loads it.
 ## npm package layout
 
 ```
-@probo/claude-plugin/
+@probo/plugin/
   .claude-plugin/plugin.json         # Claude Code manifest
   .claude-plugin/marketplace.json    # Claude marketplace (npm)
   .codex-plugin/plugin.json          # Codex manifest
@@ -127,7 +127,7 @@ directory is discovered, regardless of which agent loads it.
 Repo root (monorepo / `getprobo/probo` Git installs):
 
 ```
-.agents/plugins/marketplace.json     # Codex marketplace → packages/claude-plugin
+.agents/plugins/marketplace.json     # Codex marketplace → packages/plugin
 ```
   .mcp.json                          # Shared MCP wiring
   skills/                            # Shared skills (all agents)

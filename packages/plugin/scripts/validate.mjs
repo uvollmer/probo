@@ -97,4 +97,4 @@ if (failed) {
   process.exit(1);
 }
 
-console.log("@probo/claude-plugin validation passed");
+console.log("@probo/plugin validation passed");

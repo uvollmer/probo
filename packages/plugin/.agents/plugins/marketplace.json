@@ -16,7 +16,7 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Productivity",
-      "homepage": "https://github.com/getprobo/probo/tree/main/packages/claude-plugin",
+      "homepage": "https://github.com/getprobo/probo/tree/main/packages/plugin",
       "repository": "https://github.com/getprobo/probo",
       "license": "MIT",
       "keywords": [

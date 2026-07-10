@@ -1,5 +1,5 @@
 {
-  "name": "@probo/claude-plugin",
+  "name": "@probo/plugin",
   "version": "0.1.0",
   "description": "Multi-agent plugin for open-source compliance (Claude Code, Codex, OpenCode) powered by Probo MCP",
   "private": false,
@@ -27,7 +27,7 @@
   ],
   "keywords": [
     "claude-code",
-    "claude-plugin",
+    "agent-plugin",
     "codex",
     "opencode",
     "probo",
@@ -40,12 +40,12 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/getprobo/probo.git",
-    "directory": "packages/claude-plugin"
+    "directory": "packages/plugin"
   },
   "bugs": {
     "url": "https://github.com/getprobo/probo/issues"
   },
-  "homepage": "https://github.com/getprobo/probo/tree/main/packages/claude-plugin#readme",
+  "homepage": "https://github.com/getprobo/probo/tree/main/packages/plugin#readme",
   "publishConfig": {
     "access": "public"
   }

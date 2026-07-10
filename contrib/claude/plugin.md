@@ -1,20 +1,19 @@
-# Claude Code Plugin (`packages/claude-plugin`)
+# Agent plugin (`packages/plugin`)
 
-npm package [`@probo/claude-plugin`](../../packages/claude-plugin) ships a
-multi-agent plugin for open-source compliance workflows powered by the Probo
-MCP API. Compatible with **Claude Code**, **Codex**, **OpenCode**, and
-**Cursor** (via MCP + skills). See
-[`COMPATIBILITY.md`](../../packages/claude-plugin/COMPATIBILITY.md).
+npm package [`@probo/plugin`](../../packages/plugin) ships a multi-agent plugin
+for open-source compliance workflows powered by the Probo MCP API. Compatible
+with **Claude Code**, **Codex**, **OpenCode**, and **Cursor** (via MCP +
+skills). See [`COMPATIBILITY.md`](../../packages/plugin/COMPATIBILITY.md).
 
 ## What this plugin is
 
-A **Claude plugin** (the installable unit) bundling:
+A **multi-agent plugin** (the installable unit) bundling:
 
 | Component | Role |
 | --- | --- |
-| `.mcp.json` | Connects Claude to Probo (`/mcp/v1`, OAuth 2.0) |
+| `.mcp.json` | Connects agents to Probo (`/mcp/v1`, OAuth 2.0) |
 | `skills/` | Workflow instructions and reference docs |
-| `commands/` | Explicit slash commands (e.g. `access-review`) |
+| `commands/` | Explicit slash commands (e.g. `access-review`, Claude Code only) |
 | `agents/` | Optional specialized subagents |
 | `hooks/` | Optional event automation |
 
@@ -23,18 +22,18 @@ Individual capabilities are namespaced under `probo`:
 - Skills: `/probo:<skill-name>` (e.g. `/probo:open-source-compliance`)
 - Commands: `/probo:<command-name>` (e.g. `/probo:access-review`)
 
-The npm package name stays `@probo/claude-plugin` because that matches Claude
-Code's distribution model.
+Published to npm as `@probo/plugin`. Agent-specific manifests (`.claude-plugin/`,
+`.codex-plugin/`) ship inside the same package.
 
 ## Directory structure
 
 ```
 .agents/plugins/marketplace.json   # repo root — Codex catalog for getprobo/probo
 
-packages/claude-plugin/
+packages/plugin/
   .claude-plugin/
-    plugin.json           # Plugin manifest (required)
-    marketplace.json      # Marketplace catalog for npm distribution
+    plugin.json           # Claude Code manifest (required)
+    marketplace.json      # Claude marketplace catalog (npm)
   .agents/plugins/
     marketplace.json      # Codex catalog when marketplace root is the package
   .codex-plugin/
@@ -66,7 +65,7 @@ Claude Code validates the manifest strictly. Common pitfalls:
 | `bugs` | string URL | **Not** the npm-style `{ url }` object |
 | `version` | string | Bump on every release when using explicit versioning |
 
-Run `npm --workspace @probo/claude-plugin run validate` before publishing.
+Run `npm --workspace @probo/plugin run validate` before publishing.
 
 ## Probo MCP configuration
 
@@ -86,12 +85,12 @@ starting the OAuth flow.
 3. Validate and test:
 
 ```bash
-npm --workspace @probo/claude-plugin run validate
-claude --plugin-dir ./packages/claude-plugin
+npm --workspace @probo/plugin run validate
+claude --plugin-dir ./packages/plugin
 /probo:<name>
 ```
 
-4. Update `packages/claude-plugin/CHANGELOG.md` under `## Unreleased`.
+4. Update `packages/plugin/CHANGELOG.md` under `## Unreleased`.
 
 Skills must be self-contained — npm installs do not include `contrib/claude/`
 from the monorepo.
@@ -108,19 +107,19 @@ OpenCode load the same workflow. Reference docs live under
    `argument-hint`, `disable-model-invocation: true` when writes are involved).
 2. Add reference docs under `skills/<name>/references/`.
 3. Register paths in `scripts/validate.mjs`.
-4. Test: `/probo:<name> <args>` after `claude --plugin-dir ./packages/claude-plugin`.
+4. Test: `/probo:<name> <args>` after `claude --plugin-dir ./packages/plugin`.
 
 ## Distribution
 
-Published to npm as `@probo/claude-plugin`. Marketplace entry:
+Published to npm as `@probo/plugin`. Claude marketplace entry:
 
 ```json
 {
   "source": {
     "source": "npm",
-    "package": "@probo/claude-plugin"
+    "package": "@probo/plugin"
   }
 }
 ```
 
-Release process: [`contrib/claude/release/claude-plugin.md`](release/claude-plugin.md).
+Release process: [`contrib/claude/release/plugin.md`](release/plugin.md).

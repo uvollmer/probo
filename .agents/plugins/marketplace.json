@@ -9,14 +9,14 @@
       "description": "Open-source compliance workflows powered by Probo MCP",
       "source": {
         "source": "local",
-        "path": "./packages/claude-plugin"
+        "path": "./packages/plugin"
       },
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
       },
       "category": "Productivity",
-      "homepage": "https://github.com/getprobo/probo/tree/main/packages/claude-plugin",
+      "homepage": "https://github.com/getprobo/probo/tree/main/packages/plugin",
       "repository": "https://github.com/getprobo/probo",
       "license": "MIT",
       "keywords": [

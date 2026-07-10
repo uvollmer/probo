@@ -1,4 +1,4 @@
-# @probo/claude-plugin
+# @probo/plugin
 
 Multi-agent plugin for open-source compliance workflows. Ships Agent
 Skills–compatible instructions and wires agents to the [Probo MCP
@@ -9,7 +9,7 @@ OAuth 2.0.
 
 Marketplace catalogs: `.claude-plugin/marketplace.json` (Claude Code),
 `.agents/plugins/marketplace.json` at the repo root or under
-`packages/claude-plugin/` (Codex). See [COMPATIBILITY.md](./COMPATIBILITY.md).
+`packages/plugin/` (Codex). See [COMPATIBILITY.md](./COMPATIBILITY.md).
 
 ## Install
 
@@ -18,12 +18,12 @@ Marketplace catalogs: `.claude-plugin/marketplace.json` (Claude Code),
 Add the marketplace catalog, then install the plugin:
 
 ```bash
-claude plugin marketplace add ./packages/claude-plugin/.claude-plugin
+claude plugin marketplace add ./packages/plugin/.claude-plugin
 claude plugin install probo@probo
 ```
 
 When consuming the published package, the marketplace entry resolves
-`@probo/claude-plugin` from npm (see `.claude-plugin/marketplace.json`).
+`@probo/plugin` from npm (see `.claude-plugin/marketplace.json`).
 
 ### Configure Probo MCP
 
@@ -53,7 +53,7 @@ Claude Code discovers Probo's authorization server via
 ### Local development
 
 ```bash
-claude --plugin-dir ./packages/claude-plugin
+claude --plugin-dir ./packages/plugin
 ```
 
 ## What's included
@@ -72,14 +72,14 @@ Commands: `/probo:<command-name>` (e.g. `/probo:access-review Q3 GitHub review`)
 
 ## Adding content
 
-See [`contrib/claude/claude-plugin.md`](../../contrib/claude/claude-plugin.md).
+See [`contrib/claude/plugin.md`](../../contrib/claude/plugin.md).
 
 ```bash
-npm --workspace @probo/claude-plugin run validate
-claude --plugin-dir ./packages/claude-plugin
+npm --workspace @probo/plugin run validate
+claude --plugin-dir ./packages/plugin
 ```
 
 ## Release
 
-Published to npm as `@probo/claude-plugin`. See
-[`contrib/claude/release/claude-plugin.md`](../../contrib/claude/release/claude-plugin.md).
+Published to npm as `@probo/plugin`. See
+[`contrib/claude/release/plugin.md`](../../contrib/claude/release/plugin.md).
