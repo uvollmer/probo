@@ -7,8 +7,13 @@ this file.
 
 ### Added
 
-- `access-review` command for semi-automated campaign review via Probo MCP
-- Reference docs for MCP tools, decision rubric, and `.probo/access-reviews/` notes format
+- Multi-agent support: `.codex-plugin/plugin.json` and `COMPATIBILITY.md`
+- `skills/access-review/SKILL.md` as canonical workflow (Codex, OpenCode, Cursor)
+- Portable relative `references/` paths (no `${CLAUDE_PLUGIN_ROOT}` in skills)
+
+### Changed
+
+- `access-review` Claude command delegates to the shared skill
 
 ### Changed
 

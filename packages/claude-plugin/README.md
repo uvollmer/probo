@@ -1,9 +1,12 @@
 # @probo/claude-plugin
 
-Claude Code plugin for open-source compliance workflows. Bundles skills that
-guide compliance work and wires Claude to the [Probo MCP
-API](https://github.com/getprobo/probo/tree/main/pkg/server/api/mcp/v1) (270+
-tools for GRC entities and operations).
+Multi-agent plugin for open-source compliance workflows. Ships Agent
+Skills–compatible instructions and wires agents to the [Probo MCP
+API](https://github.com/getprobo/probo/tree/main/pkg/server/api/mcp/v1) via
+OAuth 2.0.
+
+**Supported agents:** Claude Code, Codex, OpenCode, Cursor (MCP + skills). See
+[COMPATIBILITY.md](./COMPATIBILITY.md) for per-agent setup.
 
 ## Install
 

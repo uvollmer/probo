@@ -20,12 +20,15 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const requiredPaths = [
   ".claude-plugin/plugin.json",
+  ".codex-plugin/plugin.json",
   ".mcp.json",
   "commands/access-review.md",
+  "skills/access-review/SKILL.md",
   "skills/open-source-compliance/SKILL.md",
   "skills/access-review/references/mcp-tools.md",
   "skills/access-review/references/decision-rubric.md",
   "skills/access-review/references/notes-format.md",
+  "COMPATIBILITY.md",
 ];
 
 let failed = false;
@@ -39,25 +42,33 @@ for (const relativePath of requiredPaths) {
 }
 
 const manifestPath = join(root, ".claude-plugin/plugin.json");
-if (existsSync(manifestPath)) {
+const codexManifestPath = join(root, ".codex-plugin/plugin.json");
+
+for (const [label, path] of [
+  ["plugin.json", manifestPath],
+  [".codex-plugin/plugin.json", codexManifestPath],
+]) {
+  if (!existsSync(path)) {
+    continue;
+  }
   try {
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const manifest = JSON.parse(readFileSync(path, "utf8"));
     if (typeof manifest.name !== "string" || manifest.name.length === 0) {
-      console.error("plugin.json: name must be a non-empty string");
+      console.error(`${label}: name must be a non-empty string`);
       failed = true;
     }
     if (manifest.repository != null && typeof manifest.repository !== "string") {
       console.error(
-        "plugin.json: repository must be a string URL, not an object",
+        `${label}: repository must be a string URL, not an object`,
       );
       failed = true;
     }
     if (manifest.bugs != null && typeof manifest.bugs !== "string") {
-      console.error("plugin.json: bugs must be a string URL, not an object");
+      console.error(`${label}: bugs must be a string URL, not an object`);
       failed = true;
     }
   } catch (error) {
-    console.error(`plugin.json is not valid JSON: ${error.message}`);
+    console.error(`${label} is not valid JSON: ${error.message}`);
     failed = true;
   }
 }

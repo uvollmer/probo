@@ -1,8 +1,10 @@
 # Claude Code Plugin (`packages/claude-plugin`)
 
-npm package [`@probo/claude-plugin`](../../packages/claude-plugin) that ships a
-[Claude Code plugin](https://code.claude.com/docs/en/plugins) for open-source
-compliance workflows powered by the Probo MCP API.
+npm package [`@probo/claude-plugin`](../../packages/claude-plugin) ships a
+multi-agent plugin for open-source compliance workflows powered by the Probo
+MCP API. Compatible with **Claude Code**, **Codex**, **OpenCode**, and
+**Cursor** (via MCP + skills). See
+[`COMPATIBILITY.md`](../../packages/claude-plugin/COMPATIBILITY.md).
 
 ## What this plugin is
 
@@ -90,9 +92,11 @@ from the monorepo.
 
 ## Adding a command
 
-Use commands for explicit, user-invoked workflows (especially MCP writes).
-Pair a thin `commands/<name>.md` with `skills/<name>/references/` for rubrics
-and tool docs the command loads via `${CLAUDE_PLUGIN_ROOT}`.
+Use commands for explicit, user-invoked workflows on Claude Code only. Pair a
+thin `commands/<name>.md` with a shared `skills/<name>/SKILL.md` so Codex and
+OpenCode load the same workflow. Reference docs live under
+`skills/<name>/references/` using paths relative to the skill directory (not
+`${CLAUDE_PLUGIN_ROOT}`).
 
 1. Create `commands/<name>.md` with frontmatter (`description`,
    `argument-hint`, `disable-model-invocation: true` when writes are involved).
